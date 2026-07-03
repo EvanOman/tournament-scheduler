@@ -1,0 +1,373 @@
+name: Autumn Cup 2026
+description: 48-team weekend youth soccer tournament
+divisions:
+- id: u10b
+  name: U10 Boys
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u10g
+  name: U10 Girls
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12b
+  name: U12 Boys
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12g
+  name: U12 Girls
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u14b
+  name: U14 Boys
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u10b_team_01
+  name: United SC
+  division_id: u10b
+  club: United SC
+  seed: 1
+- id: u10b_team_02
+  name: Blaze SC
+  division_id: u10b
+  club: Blaze SC
+  seed: 2
+- id: u10b_team_03
+  name: Revolution FC
+  division_id: u10b
+  club: Revolution FC
+  seed: 3
+- id: u10b_team_04
+  name: Phoenix FC
+  division_id: u10b
+  club: Phoenix FC
+  seed: 4
+- id: u10b_team_05
+  name: United SC Black
+  division_id: u10b
+  club: United SC
+  seed: 5
+- id: u10b_team_06
+  name: Blaze SC Green
+  division_id: u10b
+  club: Blaze SC
+  seed: 6
+- id: u10b_team_07
+  name: Revolution FC Elite
+  division_id: u10b
+  club: Revolution FC
+  seed: 7
+- id: u10b_team_08
+  name: Phoenix FC Premier
+  division_id: u10b
+  club: Phoenix FC
+  seed: 8
+- id: u10g_team_01
+  name: Impact SC
+  division_id: u10g
+  club: Impact SC
+  seed: 1
+- id: u10g_team_02
+  name: Fusion SC
+  division_id: u10g
+  club: Fusion SC
+  seed: 2
+- id: u10g_team_03
+  name: Storm SC
+  division_id: u10g
+  club: Storm SC
+  seed: 3
+- id: u10g_team_04
+  name: Atlas FC
+  division_id: u10g
+  club: Atlas FC
+  seed: 4
+- id: u10g_team_05
+  name: Impact SC Black
+  division_id: u10g
+  club: Impact SC
+  seed: 5
+- id: u10g_team_06
+  name: Fusion SC Green
+  division_id: u10g
+  club: Fusion SC
+  seed: 6
+- id: u10g_team_07
+  name: Storm SC Elite
+  division_id: u10g
+  club: Storm SC
+  seed: 7
+- id: u10g_team_08
+  name: Atlas FC Premier
+  division_id: u10g
+  club: Atlas FC
+  seed: 8
+- id: u12b_team_01
+  name: United SC
+  division_id: u12b
+  club: United SC
+  seed: 1
+- id: u12b_team_02
+  name: Blaze SC
+  division_id: u12b
+  club: Blaze SC
+  seed: 2
+- id: u12b_team_03
+  name: Revolution FC
+  division_id: u12b
+  club: Revolution FC
+  seed: 3
+- id: u12b_team_04
+  name: Phoenix FC
+  division_id: u12b
+  club: Phoenix FC
+  seed: 4
+- id: u12b_team_05
+  name: Impact SC
+  division_id: u12b
+  club: Impact SC
+  seed: 5
+- id: u12b_team_06
+  name: Fusion SC
+  division_id: u12b
+  club: Fusion SC
+  seed: 6
+- id: u12b_team_07
+  name: United SC Elite
+  division_id: u12b
+  club: United SC
+  seed: 7
+- id: u12b_team_08
+  name: Blaze SC Premier
+  division_id: u12b
+  club: Blaze SC
+  seed: 8
+- id: u12b_team_09
+  name: Revolution FC Blue
+  division_id: u12b
+  club: Revolution FC
+  seed: 9
+- id: u12b_team_10
+  name: Phoenix FC Red
+  division_id: u12b
+  club: Phoenix FC
+  seed: 10
+- id: u12b_team_11
+  name: Impact SC Gold
+  division_id: u12b
+  club: Impact SC
+  seed: 11
+- id: u12b_team_12
+  name: Fusion SC White
+  division_id: u12b
+  club: Fusion SC
+  seed: 12
+- id: u12g_team_01
+  name: Storm SC
+  division_id: u12g
+  club: Storm SC
+  seed: 1
+- id: u12g_team_02
+  name: Atlas FC
+  division_id: u12g
+  club: Atlas FC
+  seed: 2
+- id: u12g_team_03
+  name: Crossfire FC
+  division_id: u12g
+  club: Crossfire FC
+  seed: 3
+- id: u12g_team_04
+  name: FC Thunder
+  division_id: u12g
+  club: FC Thunder
+  seed: 4
+- id: u12g_team_05
+  name: Storm SC Black
+  division_id: u12g
+  club: Storm SC
+  seed: 5
+- id: u12g_team_06
+  name: Atlas FC Green
+  division_id: u12g
+  club: Atlas FC
+  seed: 6
+- id: u12g_team_07
+  name: Crossfire FC Elite
+  division_id: u12g
+  club: Crossfire FC
+  seed: 7
+- id: u12g_team_08
+  name: FC Thunder Premier
+  division_id: u12g
+  club: FC Thunder
+  seed: 8
+- id: u14b_team_01
+  name: Eclipse FC
+  division_id: u14b
+  club: Eclipse FC
+  seed: 1
+- id: u14b_team_02
+  name: Strikers FC
+  division_id: u14b
+  club: Strikers FC
+  seed: 2
+- id: u14b_team_03
+  name: Sporting SC
+  division_id: u14b
+  club: Sporting SC
+  seed: 3
+- id: u14b_team_04
+  name: Galaxy SC
+  division_id: u14b
+  club: Galaxy SC
+  seed: 4
+- id: u14b_team_05
+  name: Arsenal SC
+  division_id: u14b
+  club: Arsenal SC
+  seed: 5
+- id: u14b_team_06
+  name: Summit FC
+  division_id: u14b
+  club: Summit FC
+  seed: 6
+- id: u14b_team_07
+  name: Eclipse FC Elite
+  division_id: u14b
+  club: Eclipse FC
+  seed: 7
+- id: u14b_team_08
+  name: Strikers FC Premier
+  division_id: u14b
+  club: Strikers FC
+  seed: 8
+- id: u14b_team_09
+  name: Sporting SC Blue
+  division_id: u14b
+  club: Sporting SC
+  seed: 9
+- id: u14b_team_10
+  name: Galaxy SC Red
+  division_id: u14b
+  club: Galaxy SC
+  seed: 10
+- id: u14b_team_11
+  name: Arsenal SC Gold
+  division_id: u14b
+  club: Arsenal SC
+  seed: 11
+- id: u14b_team_12
+  name: Summit FC White
+  division_id: u14b
+  club: Summit FC
+  seed: 12
+fields:
+- id: f1
+  name: Field 1
+  size: medium
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f2
+  name: Field 2
+  size: medium
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f3
+  name: Field 3
+  size: large
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f4
+  name: Field 4
+  size: large
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f5
+  name: Field 5
+  size: full
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f6
+  name: Field 6
+  size: full
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+coaching_conflicts:
+- coach_name: Coach Davis
+  team_ids:
+  - u10b_team_01
+  - u12b_team_01
+- coach_name: Coach Kim
+  team_ids:
+  - u10g_team_02
+  - u12g_team_02
+team_avoidances: []
+time_preferences:
+- target: u10b
+  target_type: division
+  preferred_windows:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T14:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T14:00:00'
+  priority: medium
+- target: u10g
+  target_type: division
+  preferred_windows:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T14:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T14:00:00'
+  priority: medium
+field_preferences: []
+max_solve_seconds: 60
+num_workers: 8

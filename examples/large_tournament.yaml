@@ -1,0 +1,679 @@
+name: Premier Showcase 2026
+description: 96-team weekend youth soccer showcase tournament
+divisions:
+- id: u10b
+  name: U10 Boys
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u10g
+  name: U10 Girls
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12b
+  name: U12 Boys
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12g
+  name: U12 Girls
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u14b
+  name: U14 Boys
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u14g
+  name: U14 Girls
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u16b
+  name: U16 Boys
+  field_size: full
+  game_duration_minutes: 40
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u16g
+  name: U16 Girls
+  field_size: full
+  game_duration_minutes: 40
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u10b_team_01
+  name: United SC
+  division_id: u10b
+  club: United SC
+  seed: 1
+- id: u10b_team_02
+  name: Eclipse FC
+  division_id: u10b
+  club: Eclipse FC
+  seed: 2
+- id: u10b_team_03
+  name: Blaze SC
+  division_id: u10b
+  club: Blaze SC
+  seed: 3
+- id: u10b_team_04
+  name: Metro FC
+  division_id: u10b
+  club: Metro FC
+  seed: 4
+- id: u10b_team_05
+  name: Dynamo SC
+  division_id: u10b
+  club: Dynamo SC
+  seed: 5
+- id: u10b_team_06
+  name: Fusion SC
+  division_id: u10b
+  club: Fusion SC
+  seed: 6
+- id: u10b_team_07
+  name: Capital FC
+  division_id: u10b
+  club: Capital FC
+  seed: 7
+- id: u10b_team_08
+  name: Impact SC
+  division_id: u10b
+  club: Impact SC
+  seed: 8
+- id: u10b_team_09
+  name: Pacific SC
+  division_id: u10b
+  club: Pacific SC
+  seed: 9
+- id: u10b_team_10
+  name: United SC
+  division_id: u10b
+  club: United SC
+  seed: 10
+- id: u10b_team_11
+  name: Summit FC
+  division_id: u10b
+  club: Summit FC
+  seed: 11
+- id: u10b_team_12
+  name: Atlas FC
+  division_id: u10b
+  club: Atlas FC
+  seed: 12
+- id: u10g_team_01
+  name: Fusion SC
+  division_id: u10g
+  club: Fusion SC
+  seed: 1
+- id: u10g_team_02
+  name: FC Thunder
+  division_id: u10g
+  club: FC Thunder
+  seed: 2
+- id: u10g_team_03
+  name: Strikers FC
+  division_id: u10g
+  club: Strikers FC
+  seed: 3
+- id: u10g_team_04
+  name: Titans FC
+  division_id: u10g
+  club: Titans FC
+  seed: 4
+- id: u10g_team_05
+  name: Dynamo SC
+  division_id: u10g
+  club: Dynamo SC
+  seed: 5
+- id: u10g_team_06
+  name: Metro FC
+  division_id: u10g
+  club: Metro FC
+  seed: 6
+- id: u10g_team_07
+  name: Metro FC
+  division_id: u10g
+  club: Metro FC
+  seed: 7
+- id: u10g_team_08
+  name: Crossfire FC
+  division_id: u10g
+  club: Crossfire FC
+  seed: 8
+- id: u10g_team_09
+  name: Capital FC
+  division_id: u10g
+  club: Capital FC
+  seed: 9
+- id: u10g_team_10
+  name: Arsenal SC
+  division_id: u10g
+  club: Arsenal SC
+  seed: 10
+- id: u10g_team_11
+  name: FC Thunder
+  division_id: u10g
+  club: FC Thunder
+  seed: 11
+- id: u10g_team_12
+  name: Atlas FC
+  division_id: u10g
+  club: Atlas FC
+  seed: 12
+- id: u12b_team_01
+  name: Revolution FC
+  division_id: u12b
+  club: Revolution FC
+  seed: 1
+- id: u12b_team_02
+  name: Phoenix FC
+  division_id: u12b
+  club: Phoenix FC
+  seed: 2
+- id: u12b_team_03
+  name: Liberty SC
+  division_id: u12b
+  club: Liberty SC
+  seed: 3
+- id: u12b_team_04
+  name: Pacific SC
+  division_id: u12b
+  club: Pacific SC
+  seed: 4
+- id: u12b_team_05
+  name: Impact SC
+  division_id: u12b
+  club: Impact SC
+  seed: 5
+- id: u12b_team_06
+  name: Titans FC
+  division_id: u12b
+  club: Titans FC
+  seed: 6
+- id: u12b_team_07
+  name: Dynamo SC
+  division_id: u12b
+  club: Dynamo SC
+  seed: 7
+- id: u12b_team_08
+  name: Dynamo SC
+  division_id: u12b
+  club: Dynamo SC
+  seed: 8
+- id: u12b_team_09
+  name: Sporting SC
+  division_id: u12b
+  club: Sporting SC
+  seed: 9
+- id: u12b_team_10
+  name: Arsenal SC
+  division_id: u12b
+  club: Arsenal SC
+  seed: 10
+- id: u12b_team_11
+  name: Strikers FC
+  division_id: u12b
+  club: Strikers FC
+  seed: 11
+- id: u12b_team_12
+  name: Summit FC
+  division_id: u12b
+  club: Summit FC
+  seed: 12
+- id: u12g_team_01
+  name: Atlas FC
+  division_id: u12g
+  club: Atlas FC
+  seed: 1
+- id: u12g_team_02
+  name: Strikers FC
+  division_id: u12g
+  club: Strikers FC
+  seed: 2
+- id: u12g_team_03
+  name: Crossfire FC
+  division_id: u12g
+  club: Crossfire FC
+  seed: 3
+- id: u12g_team_04
+  name: Pacific SC
+  division_id: u12g
+  club: Pacific SC
+  seed: 4
+- id: u12g_team_05
+  name: Rapids FC
+  division_id: u12g
+  club: Rapids FC
+  seed: 5
+- id: u12g_team_06
+  name: Revolution FC
+  division_id: u12g
+  club: Revolution FC
+  seed: 6
+- id: u12g_team_07
+  name: Capital FC
+  division_id: u12g
+  club: Capital FC
+  seed: 7
+- id: u12g_team_08
+  name: Sporting SC
+  division_id: u12g
+  club: Sporting SC
+  seed: 8
+- id: u12g_team_09
+  name: Galaxy SC
+  division_id: u12g
+  club: Galaxy SC
+  seed: 9
+- id: u12g_team_10
+  name: Valley SC
+  division_id: u12g
+  club: Valley SC
+  seed: 10
+- id: u12g_team_11
+  name: Arsenal SC
+  division_id: u12g
+  club: Arsenal SC
+  seed: 11
+- id: u12g_team_12
+  name: Impact SC
+  division_id: u12g
+  club: Impact SC
+  seed: 12
+- id: u14b_team_01
+  name: Eclipse FC
+  division_id: u14b
+  club: Eclipse FC
+  seed: 1
+- id: u14b_team_02
+  name: Valley SC
+  division_id: u14b
+  club: Valley SC
+  seed: 2
+- id: u14b_team_03
+  name: Revolution FC
+  division_id: u14b
+  club: Revolution FC
+  seed: 3
+- id: u14b_team_04
+  name: Crossfire FC
+  division_id: u14b
+  club: Crossfire FC
+  seed: 4
+- id: u14b_team_05
+  name: Storm SC
+  division_id: u14b
+  club: Storm SC
+  seed: 5
+- id: u14b_team_06
+  name: Rapids FC
+  division_id: u14b
+  club: Rapids FC
+  seed: 6
+- id: u14b_team_07
+  name: Pacific SC
+  division_id: u14b
+  club: Pacific SC
+  seed: 7
+- id: u14b_team_08
+  name: Rapids FC
+  division_id: u14b
+  club: Rapids FC
+  seed: 8
+- id: u14b_team_09
+  name: Metro FC
+  division_id: u14b
+  club: Metro FC
+  seed: 9
+- id: u14b_team_10
+  name: Liberty SC
+  division_id: u14b
+  club: Liberty SC
+  seed: 10
+- id: u14b_team_11
+  name: Sporting SC
+  division_id: u14b
+  club: Sporting SC
+  seed: 11
+- id: u14b_team_12
+  name: Galaxy SC
+  division_id: u14b
+  club: Galaxy SC
+  seed: 12
+- id: u14g_team_01
+  name: Crossfire FC
+  division_id: u14g
+  club: Crossfire FC
+  seed: 1
+- id: u14g_team_02
+  name: Phoenix FC
+  division_id: u14g
+  club: Phoenix FC
+  seed: 2
+- id: u14g_team_03
+  name: Arsenal SC
+  division_id: u14g
+  club: Arsenal SC
+  seed: 3
+- id: u14g_team_04
+  name: Blaze SC
+  division_id: u14g
+  club: Blaze SC
+  seed: 4
+- id: u14g_team_05
+  name: Blaze SC
+  division_id: u14g
+  club: Blaze SC
+  seed: 5
+- id: u14g_team_06
+  name: Impact SC
+  division_id: u14g
+  club: Impact SC
+  seed: 6
+- id: u14g_team_07
+  name: Galaxy SC
+  division_id: u14g
+  club: Galaxy SC
+  seed: 7
+- id: u14g_team_08
+  name: Sporting SC
+  division_id: u14g
+  club: Sporting SC
+  seed: 8
+- id: u14g_team_09
+  name: Revolution FC
+  division_id: u14g
+  club: Revolution FC
+  seed: 9
+- id: u14g_team_10
+  name: Impact SC
+  division_id: u14g
+  club: Impact SC
+  seed: 10
+- id: u14g_team_11
+  name: Rapids FC
+  division_id: u14g
+  club: Rapids FC
+  seed: 11
+- id: u14g_team_12
+  name: Summit FC
+  division_id: u14g
+  club: Summit FC
+  seed: 12
+- id: u16b_team_01
+  name: Titans FC
+  division_id: u16b
+  club: Titans FC
+  seed: 1
+- id: u16b_team_02
+  name: FC Thunder
+  division_id: u16b
+  club: FC Thunder
+  seed: 2
+- id: u16b_team_03
+  name: Impact SC
+  division_id: u16b
+  club: Impact SC
+  seed: 3
+- id: u16b_team_04
+  name: Sporting SC
+  division_id: u16b
+  club: Sporting SC
+  seed: 4
+- id: u16b_team_05
+  name: Arsenal SC
+  division_id: u16b
+  club: Arsenal SC
+  seed: 5
+- id: u16b_team_06
+  name: Celtic FC
+  division_id: u16b
+  club: Celtic FC
+  seed: 6
+- id: u16b_team_07
+  name: Valley SC
+  division_id: u16b
+  club: Valley SC
+  seed: 7
+- id: u16b_team_08
+  name: Titans FC
+  division_id: u16b
+  club: Titans FC
+  seed: 8
+- id: u16b_team_09
+  name: Blaze SC
+  division_id: u16b
+  club: Blaze SC
+  seed: 9
+- id: u16b_team_10
+  name: Pacific SC
+  division_id: u16b
+  club: Pacific SC
+  seed: 10
+- id: u16b_team_11
+  name: Revolution FC
+  division_id: u16b
+  club: Revolution FC
+  seed: 11
+- id: u16b_team_12
+  name: Fusion SC
+  division_id: u16b
+  club: Fusion SC
+  seed: 12
+- id: u16g_team_01
+  name: Arsenal SC
+  division_id: u16g
+  club: Arsenal SC
+  seed: 1
+- id: u16g_team_02
+  name: FC Thunder
+  division_id: u16g
+  club: FC Thunder
+  seed: 2
+- id: u16g_team_03
+  name: Dynamo SC
+  division_id: u16g
+  club: Dynamo SC
+  seed: 3
+- id: u16g_team_04
+  name: Sporting SC
+  division_id: u16g
+  club: Sporting SC
+  seed: 4
+- id: u16g_team_05
+  name: Liberty SC
+  division_id: u16g
+  club: Liberty SC
+  seed: 5
+- id: u16g_team_06
+  name: Revolution FC
+  division_id: u16g
+  club: Revolution FC
+  seed: 6
+- id: u16g_team_07
+  name: Impact SC
+  division_id: u16g
+  club: Impact SC
+  seed: 7
+- id: u16g_team_08
+  name: Celtic FC
+  division_id: u16g
+  club: Celtic FC
+  seed: 8
+- id: u16g_team_09
+  name: Storm SC
+  division_id: u16g
+  club: Storm SC
+  seed: 9
+- id: u16g_team_10
+  name: Rapids FC
+  division_id: u16g
+  club: Rapids FC
+  seed: 10
+- id: u16g_team_11
+  name: Valley SC
+  division_id: u16g
+  club: Valley SC
+  seed: 11
+- id: u16g_team_12
+  name: Galaxy SC
+  division_id: u16g
+  club: Galaxy SC
+  seed: 12
+fields:
+- id: f1
+  name: Field 1
+  size: medium
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f2
+  name: Field 2
+  size: medium
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f3
+  name: Field 3
+  size: medium
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f4
+  name: Field 4
+  size: large
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f5
+  name: Field 5
+  size: large
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f6
+  name: Field 6
+  size: large
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f7
+  name: Field 7
+  size: full
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f8
+  name: Field 8
+  size: full
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f9
+  name: Field 9
+  size: full
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+- id: f10
+  name: Field 10
+  size: full
+  availability:
+  - start: '2026-11-07T07:30:00'
+    end: '2026-11-07T19:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T17:00:00'
+coaching_conflicts:
+- coach_name: Coach Thompson
+  team_ids:
+  - u10b_team_01
+  - u12b_team_01
+- coach_name: Coach Lee
+  team_ids:
+  - u10g_team_03
+  - u14g_team_03
+- coach_name: Coach Patel
+  team_ids:
+  - u14b_team_05
+  - u16b_team_05
+team_avoidances: []
+time_preferences:
+- target: u10b
+  target_type: division
+  preferred_windows:
+  - start: '2026-11-07T08:00:00'
+    end: '2026-11-07T14:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T14:00:00'
+  priority: high
+- target: u10g
+  target_type: division
+  preferred_windows:
+  - start: '2026-11-07T08:00:00'
+    end: '2026-11-07T14:00:00'
+  - start: '2026-11-08T08:00:00'
+    end: '2026-11-08T14:00:00'
+  priority: high
+field_preferences: []
+max_solve_seconds: 120
+num_workers: 8
