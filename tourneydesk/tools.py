@@ -54,7 +54,18 @@ _PRIORITY_ENUM = ["low", "medium", "high", "critical"]
 _TARGET_TYPE_ENUM = ["team", "division"]
 
 
-def _tool(name: str, description: str, properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
+def _tool(
+    name: str,
+    description: str,
+    properties: dict[str, Any],
+    required: list[str],
+    *,
+    strict: bool = False,
+) -> dict[str, Any]:
+    # Strict compilation is off for the whole suite: 17 tools with nullable unions
+    # exceed the API's compiled-grammar budget (16-union cap, then overall grammar
+    # size). dispatch() validates every input locally and returns is_error results
+    # the model can correct, which covers what strict would have guaranteed.
     return {
         "name": name,
         "description": description,
@@ -64,7 +75,7 @@ def _tool(name: str, description: str, properties: dict[str, Any], required: lis
             "required": required,
             "additionalProperties": False,
         },
-        "strict": True,
+        "strict": strict,
     }
 
 
@@ -139,7 +150,7 @@ TOOLS: list[dict[str, Any]] = [
         {
             "id": {"type": "string", "description": "Id of the division to update."},
             "name": {"type": ["string", "null"]},
-            "field_size": {"type": ["string", "null"], "enum": [*_FIELD_SIZE_ENUM, None]},
+            "field_size": {"anyOf": [{"type": "string", "enum": _FIELD_SIZE_ENUM}, {"type": "null"}]},
             "game_duration_minutes": {"type": ["integer", "null"]},
             "halftime_minutes": {"type": ["integer", "null"]},
             "buffer_minutes": {"type": ["integer", "null"]},
@@ -285,8 +296,7 @@ TOOLS: list[dict[str, Any]] = [
             "target_type": {"type": "string", "enum": _TARGET_TYPE_ENUM},
             "windows": {"type": "array", "items": _TIME_WINDOW_SCHEMA},
             "priority": {
-                "type": ["string", "null"],
-                "enum": [*_PRIORITY_ENUM, None],
+                "anyOf": [{"type": "string", "enum": _PRIORITY_ENUM}, {"type": "null"}],
                 "description": "How strongly to weight this preference, or null to default to medium.",
             },
             "source_quote": _SOURCE_QUOTE_PROP,
@@ -302,8 +312,7 @@ TOOLS: list[dict[str, Any]] = [
             "target_type": {"type": "string", "enum": _TARGET_TYPE_ENUM},
             "field_ids": {"type": "array", "items": {"type": "string"}},
             "priority": {
-                "type": ["string", "null"],
-                "enum": [*_PRIORITY_ENUM, None],
+                "anyOf": [{"type": "string", "enum": _PRIORITY_ENUM}, {"type": "null"}],
                 "description": "How strongly to weight this preference, or null to default to low.",
             },
             "source_quote": _SOURCE_QUOTE_PROP,
@@ -539,7 +548,17 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
 
     except ValidationError as exc:
         return ToolResult(content=f"That doesn't fit the spec: {exc.errors()[0]['msg']}", is_error=True)
-    except (ValueError, KeyError, LookupError) as exc:
+    except KeyError as exc:
+        # Tools are non-strict, so the model can omit a required argument; str(KeyError)
+        # is just the bare key repr, which is useless (and once leaked into the UI).
+        return ToolResult(
+            content=(
+                f"Tool '{name}' was called without its required argument {exc}. "
+                "Call it again with every declared field (pass null for unstated optional fields)."
+            ),
+            is_error=True,
+        )
+    except (ValueError, LookupError) as exc:
         return ToolResult(content=str(exc), is_error=True)
 
     return ToolResult(content=f"Unhandled tool '{name}'.", is_error=True)
