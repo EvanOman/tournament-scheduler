@@ -17,10 +17,22 @@ from tournament_scheduler.models import TournamentSchedule, TournamentSpec
 from tournament_scheduler.pools import assign_pools
 from tournament_scheduler.solver import solve
 from tournament_scheduler.validator import ValidationResult, validate
-from tourneydesk.providers.base import AgentTurn, IntakeProvider, OnTurn, Persona, run_conversation
+from tourneydesk.providers.base import (
+    AgentTurn,
+    IntakeProvider,
+    OnTurn,
+    Persona,
+    TextDelta,
+    run_conversation,
+)
 from tourneydesk.session import IncompleteSpecError, SpecSession
 
-SolveStatus = Literal["incomplete", "infeasible", "invalid", "solved"]
+SolveStatus = Literal["incomplete", "infeasible", "invalid", "solved", "inconclusive"]
+
+# Speculative solves back a live UI panel: they must return fast, not exhaust the
+# spec's full (default 60s) budget — repair turns fire several mutations back to
+# back, and 60s solves stacked into a multi-minute "SOLVING…" hang (persona P4).
+SPECULATIVE_SOLVE_SECONDS = 10
 
 
 @dataclass
@@ -32,6 +44,7 @@ class SolveOutcome:
     assumptions: list[str] = field(default_factory=list)
     schedule: TournamentSchedule | None = None
     validation: ValidationResult | None = None
+    spec: TournamentSpec | None = None
 
     @property
     def ok(self) -> bool:
@@ -54,8 +67,8 @@ class IntakeService:
     def session(self) -> SpecSession:
         return self.provider.session
 
-    async def send(self, director_message: str) -> AgentTurn:
-        return await self.provider.send(director_message)
+    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn:
+        return await self.provider.send(director_message, on_text_delta)
 
     async def run_conversation(
         self, persona: Persona, max_turns: int = 20, on_turn: OnTurn | None = None
@@ -84,11 +97,16 @@ class IntakeService:
         except IncompleteSpecError as exc:
             return SolveOutcome(status="incomplete", missing=exc.missing)
 
+        spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
         pools = assign_pools(spec)
         schedule = solve(spec, pools)
+        if schedule.stats.status == "INFEASIBLE":
+            return SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule, spec=spec)
         if schedule.stats.status not in ("OPTIMAL", "FEASIBLE"):
-            return SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule)
+            # UNKNOWN = the clamped solve timed out undecided. Saying "can't be met"
+            # here is a lie (persona P4 saw exactly that); be honest instead.
+            return SolveOutcome(status="inconclusive", assumptions=assumptions, schedule=schedule, spec=spec)
 
         result = validate(schedule, spec)
         status: SolveStatus = "solved" if result.valid else "invalid"
-        return SolveOutcome(status=status, assumptions=assumptions, schedule=schedule, validation=result)
+        return SolveOutcome(status=status, assumptions=assumptions, schedule=schedule, validation=result, spec=spec)

@@ -65,6 +65,7 @@ class DraftDivision:
     name: str
     field_size: FieldSize
     game_duration_minutes: int
+    game_format: str | None = None
     halftime_minutes: int | None = None
     buffer_minutes: int | None = None
     min_rest_minutes: int | None = None
@@ -164,6 +165,7 @@ class SpecSession:
         name: str,
         field_size: str,
         game_duration_minutes: int,
+        game_format: str | None = None,
         halftime_minutes: int | None = None,
         buffer_minutes: int | None = None,
         min_rest_minutes: int | None = None,
@@ -190,6 +192,7 @@ class SpecSession:
             name=name,
             field_size=size,
             game_duration_minutes=game_duration_minutes,
+            game_format=game_format,
             halftime_minutes=halftime_minutes,
             buffer_minutes=buffer_minutes,
             min_rest_minutes=min_rest_minutes,
@@ -208,6 +211,7 @@ class SpecSession:
         name: str | None = None,
         field_size: str | None = None,
         game_duration_minutes: int | None = None,
+        game_format: str | None = None,
         halftime_minutes: int | None = None,
         buffer_minutes: int | None = None,
         min_rest_minutes: int | None = None,
@@ -237,6 +241,8 @@ class SpecSession:
         draft.name = new_name
         draft.field_size = new_size
         draft.game_duration_minutes = new_duration
+        if game_format is not None:
+            draft.game_format = game_format
         draft.halftime_minutes = merged["halftime_minutes"]
         draft.buffer_minutes = merged["buffer_minutes"]
         draft.min_rest_minutes = merged["min_rest_minutes"]
@@ -443,6 +449,7 @@ class SpecSession:
                 "id": d.id,
                 "name": d.name,
                 "field_size": d.field_size,
+                "game_format": d.game_format,
                 "game_duration_minutes": d.game_duration_minutes,
             }
             for name, default in defaults.items():
@@ -495,6 +502,7 @@ class SpecSession:
                     "id": d.id,
                     "name": d.name,
                     "field_size": d.field_size.value,
+                    "game_format": d.game_format,
                     "game_duration_minutes": d.game_duration_minutes,
                     "halftime_minutes": d.halftime_minutes,
                     "buffer_minutes": d.buffer_minutes,

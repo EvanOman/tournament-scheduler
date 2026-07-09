@@ -5,11 +5,11 @@ scheduling product on top of the existing CP-SAT solver).
 
 ## Milestone checklist
 
-- [ ] **M1 — Agent skeleton**: ClaudeIntake + strict spec-mutation tools + `tourneydesk chat --brief` CLI harness + FakeIntake + fake-LLM e2e test
-- [ ] **M2 — Scoreboard**: golden brief corpus (first 15), persona-driven eval runner, metrics JSON, CI gate on deterministic subset
+- [x] **M1 — Agent skeleton**: ClaudeIntake + strict spec-mutation tools + `tourneydesk chat --brief` CLI harness + FakeIntake + fake-LLM e2e test *(merged; full gate green 2026-07-09)*
+- [ ] **M2 — Scoreboard**: golden brief corpus ✅ (15 briefs merged) · persona-driven eval runner + metrics JSON + CI gate ⏳ (in flight, `m2-eval-runner`)
 - [ ] **M3 — Web core**: FastAPI + WebSocket chat, live Rules panel, SQLite spec persistence (screenshot evidence)
 - [ ] **M4 — Speculative solve**: debounced background solves, Sample Schedule panel, assumption-labeled defaults
-- [ ] **M5 — Infeasibility engine**: assumption-instrumented solver, minimal conflict extraction + golden tests, NL explanation + repairs
+- [ ] **M5 — Infeasibility engine**: instrumented solver + minimal conflict extraction ✅ (merged) · NL explanation + repairs ⏳
 - [ ] **M6 — Adjustment loop**: minimal-churn re-solve, schedule diff view, disruption briefs
 - [ ] **M7 — Explanation & brackets**: explanation bundle, solver-grounded "why" answers, bracket phase
 - [ ] **M8 — Polish & full corpus**: 25+ briefs, eval trend doc, README refresh, design polish, tag v0.2.0
@@ -59,5 +59,25 @@ scheduling product on top of the existing CP-SAT solver).
 - **Note**: a concurrent session merged the three branches into main at 13:04 while this loop was
   mid-review; this loop then merged the outstanding e2e fix and re-gated main with a full
   `just check`.
-- **Next**: M3 web core vertical slice (FastAPI + WebSocket chat + Rules panel + sample schedule,
-  port 18780) — Evan's stated critical path; then M2 eval runner, M5 NL explanation wiring.
+- **Post-merge gate (main session)**: full `just check` on merged main at `dbee8b1` — exit 0,
+  **217 passed, 2 skipped** (7:25). Main verified.
+- **Single-writer protocol established** after the concurrent-merge race: the Fable main session
+  owns main (merges + these docs); the goal-loop orchestrator and all workers commit only on
+  worktree branches and report "READY TO MERGE".
+- **In flight**: M3 web core (opus worker, `m3-web-core` worktree — FastAPI/WS + 3-panel frontend,
+  port 18780); M2 eval runner (orchestrator, `m2-eval-runner` worktree). After M3 merge: deploy via
+  deploy skill, then 6-persona browser validation fleet (P1–P6, defined in session scratchpad).
+
+### Persona validation round 1 — 2026-07-09
+
+- Fleet: 6 sonnet persona agents (first-timer, veteran, chaos, infeasibility, skeptic, mobile)
+  drove the deployed site in isolated browsers. Unanimous P0: every browser joined `sessions[0]`,
+  so all six shared ONE conversation — cross-contamination invalidated most rubrics.
+- Real findings kept: mobile layout PASS at 390px (no h-scroll, tabs work); early intake quality
+  praised (plain-language clarifying questions, explicit conflict flagging); KeyError reprs and
+  error echoes leaked into chat; failed turns killed the WS loop silently; infeasibility text too
+  generic (M5 lane); field_size/format ontology conflation (D15, queued).
+- Fixes landed + redeployed: session-per-visit w/ URL-hash rejoin (D13), error echoes suppressed
+  (D14), actionable missing-arg messages, turn-failure resilience + visible error events.
+- Verified: two concurrent browsers → distinct sessions, zero cross-talk on live probe.
+- Round 2 launched against the fixed deployment.

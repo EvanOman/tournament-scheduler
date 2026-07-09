@@ -7,9 +7,12 @@ from tourneydesk.tools import TOOLS, dispatch
 
 
 class TestSchemas:
-    def test_every_tool_is_strict_with_full_required_and_no_extra_props(self):
+    # Strict compilation is off suite-wide: 17 tools with nullable unions exceed the
+    # API's compiled-grammar budget (live 400s: union cap, then grammar size). Local
+    # dispatch() validation + is_error retries cover what strict would guarantee.
+    def test_no_tool_is_strict_and_schema_shape_holds(self):
         for tool in TOOLS:
-            assert tool.get("strict") is True, f"{tool['name']} is not marked strict"
+            assert tool.get("strict") is False, f"{tool['name']} must not be strict (grammar budget)"
             schema = tool["input_schema"]
             assert schema["type"] == "object"
             assert schema["additionalProperties"] is False, f"{tool['name']} allows additionalProperties"
@@ -48,7 +51,7 @@ class TestSchemas:
 
     def test_mutation_tools_include_source_quote(self):
         for tool in TOOLS:
-            if tool["name"] in ("get_spec_summary",):
+            if tool["name"] in ("get_spec_summary", "get_schedule_summary"):
                 continue
             props = tool["input_schema"]["properties"]
             if tool["name"] == "mark_intake_complete":
