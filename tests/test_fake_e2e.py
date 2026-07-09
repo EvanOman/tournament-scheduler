@@ -48,8 +48,8 @@ SCRIPT: list[dict[str, object]] = [
                     "min_rest_minutes": 45,
                     "games_per_team": 3,
                     "pool_size": 4,
-                    "bracket_after_pools": None,
-                    "source_quote": "U10 Boys play 7v7, 25 minute games, 5 min half, 3 games each",
+                    "bracket_after_pools": True,
+                    "source_quote": "U10 Boys play 7v7, 25 minute games, 5 min half, 3 games each, then a bracket",
                 },
             },
             {
@@ -159,7 +159,9 @@ def test_fake_intake_end_to_end_produces_valid_schedule():
     assert len(spec.divisions) == 2
     assert len(spec.teams) == 8
     assert len(spec.fields) == 2
-    assert assumptions == []  # every field was explicitly stated in the script
+    # The script states the U10 bracket explicitly but never mentions one for
+    # U12 Girls -- the session must surface exactly that as a labeled assumption.
+    assert assumptions == ["Assumed an elimination bracket after pool play for U12 Girls (not stated)"]
 
     pools = assign_pools(spec)
     schedule = solve(spec, pools)
