@@ -98,21 +98,40 @@ class IntakeService:
         all come back as a SolveOutcome with the right status, so callers
         (CLI or web) can render a status without their own try/except.
         """
-        try:
-            spec, assumptions = self.session.to_spec()
-        except IncompleteSpecError as exc:
-            return SolveOutcome(status="incomplete", missing=exc.missing)
+        return solve_current(self.session)
 
-        spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
-        pools = assign_pools(spec)
-        schedule = solve(spec, pools)
-        if schedule.stats.status == "INFEASIBLE":
-            return SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule, spec=spec)
-        if schedule.stats.status not in ("OPTIMAL", "FEASIBLE"):
-            # UNKNOWN = the clamped solve timed out undecided. Saying "can't be met"
-            # here is a lie (persona P4 saw exactly that); be honest instead.
-            return SolveOutcome(status="inconclusive", assumptions=assumptions, schedule=schedule, spec=spec)
 
+def solve_current(session: SpecSession) -> SolveOutcome:
+    """Solve the session's current draft, memoized on the spec fingerprint.
+
+    CP-SAT is nondeterministic run to run, so two independent solves of the
+    same spec can return different (equally valid) schedules — the agent's
+    digest once described a different solution than the panel was showing
+    (persona P5). Every consumer goes through here so, for a given draft,
+    there is exactly ONE schedule everyone describes.
+    """
+    try:
+        spec, assumptions = session.to_spec()
+    except IncompleteSpecError as exc:
+        return SolveOutcome(status="incomplete", missing=exc.missing)
+
+    spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
+    fingerprint = spec.model_dump_json()
+    if session.solve_cache is not None and session.solve_cache[0] == fingerprint:
+        return session.solve_cache[1]
+
+    pools = assign_pools(spec)
+    schedule = solve(spec, pools)
+    if schedule.stats.status == "INFEASIBLE":
+        outcome = SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule, spec=spec)
+    elif schedule.stats.status not in ("OPTIMAL", "FEASIBLE"):
+        # UNKNOWN = the clamped solve timed out undecided. Saying "can't be met"
+        # here is a lie (persona P4 saw exactly that); be honest instead.
+        outcome = SolveOutcome(status="inconclusive", assumptions=assumptions, schedule=schedule, spec=spec)
+    else:
         result = validate(schedule, spec)
         status: SolveStatus = "solved" if result.valid else "invalid"
-        return SolveOutcome(status=status, assumptions=assumptions, schedule=schedule, validation=result, spec=spec)
+        outcome = SolveOutcome(status=status, assumptions=assumptions, schedule=schedule, validation=result, spec=spec)
+
+    session.solve_cache = (fingerprint, outcome)
+    return outcome

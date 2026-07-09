@@ -147,6 +147,10 @@ class SpecSession:
         self._assumptions: list[str] = []
         self.intake_complete: bool = False
         self._completion_quote: str | None = None
+        # (spec fingerprint, SolveOutcome) — CP-SAT is nondeterministic across
+        # runs, so every consumer (schedule panel, agent digest) must describe
+        # the SAME solution for the same spec. core.service.solve_current owns it.
+        self.solve_cache: tuple[str, Any] | None = None
 
     # -- Tournament info ----------------------------------------------------
 

@@ -392,40 +392,39 @@ _TOOL_NAMES = {t["name"] for t in TOOLS}
 
 
 def _schedule_digest(session: SpecSession) -> str:
-    """Solve the current draft and return a compact, factual schedule digest.
+    """Return a compact, factual digest of the CURRENT schedule.
 
-    This is the agent's ground truth for schedule questions (persona P5 caught
-    it confabulating about solve state it could not see). Same code path as the
-    UI's speculative solve, same 10s clamp.
+    Ground truth for the agent's schedule answers (persona P5 caught it
+    confabulating about state it could not see). Goes through the same
+    memoized solve as the UI panel, so agent and panel always describe the
+    SAME solution; includes game-level matchups so the agent never has to
+    assert pairing facts it cannot see.
     """
-    from tournament_scheduler.pools import assign_pools  # noqa: PLC0415 -- avoids tools<->core import cycle
-    from tournament_scheduler.solver import solve  # noqa: PLC0415
-    from tournament_scheduler.validator import validate  # noqa: PLC0415
-    from tourneydesk.core.service import SPECULATIVE_SOLVE_SECONDS  # noqa: PLC0415
-    from tourneydesk.session import IncompleteSpecError  # noqa: PLC0415
+    from tourneydesk.core.service import solve_current  # noqa: PLC0415 -- avoids tools<->core import cycle
 
-    try:
-        spec, assumptions = session.to_spec()
-    except IncompleteSpecError as exc:
-        return "No schedule yet — the draft is missing:\n" + "\n".join(f"  - {m}" for m in exc.missing)
-
-    spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
-    schedule = solve(spec, assign_pools(spec))
-    status = schedule.stats.status
-    if status == "INFEASIBLE":
+    outcome = solve_current(session)
+    if outcome.status == "incomplete":
+        return "No schedule yet — the draft is missing:\n" + "\n".join(f"  - {m}" for m in outcome.missing)
+    if outcome.status == "infeasible":
         return "Current draft is INFEASIBLE — no schedule satisfies all hard constraints as stated."
-    if status not in ("OPTIMAL", "FEASIBLE"):
+    if outcome.status == "inconclusive":
         return (
             "The quick solve pass timed out UNDECIDED — the draft is very tightly constrained. "
             "Neither a schedule nor a proof of impossibility yet."
         )
 
-    result = validate(schedule, spec)
+    schedule = outcome.schedule
+    spec = outcome.spec
+    result = outcome.validation
+    assert schedule is not None and spec is not None  # solved/invalid always carry both
     team_names = {t.id: t.name for t in spec.teams}
     lines = [
-        f"Schedule status: {status} ({schedule.stats.wall_time_seconds:.1f}s), "
-        f"{len(schedule.games)} games, validator {'PASSED' if result.valid else 'FAILED'}."
+        f"Schedule status: {schedule.stats.status} ({schedule.stats.wall_time_seconds:.1f}s), "
+        f"{len(schedule.games)} games, validator "
+        f"{'PASSED' if result is not None and result.valid else 'FAILED'}. "
+        "This is the exact schedule the director's panel shows."
     ]
+    assumptions = outcome.assumptions
     if assumptions:
         lines.append("Applied assumptions: " + "; ".join(assumptions))
 
@@ -443,15 +442,20 @@ def _schedule_digest(session: SpecSession) -> str:
         last = max(g.end_time for g in games).strftime("%a %H:%M")
         lines.append(f"  - {field_names.get(fid, fid)}: {len(games)} games, days {'/'.join(days)}, {first}–{last}")
 
-    lines.append("Per team (games by day):")
-    by_team: dict[str, dict[str, int]] = {}
+    field_name = {f.id: f.name for f in spec.fields}
+    lines.append("Per team (every game — day, time, opponent, field):")
+    by_team_games: dict[str, list[Any]] = {}
     for g in schedule.games:
-        for tid in (g.home_team_id, g.away_team_id):
-            day = g.start_time.strftime("%a")
-            by_team.setdefault(tid, {})[day] = by_team.setdefault(tid, {}).get(day, 0) + 1
-    for tid, days_map in by_team.items():
-        parts = ", ".join(f"{d}×{n}" for d, n in sorted(days_map.items()))
-        lines.append(f"  - {team_names.get(tid, tid)}: {parts}")
+        by_team_games.setdefault(g.home_team_id, []).append(g)
+        by_team_games.setdefault(g.away_team_id, []).append(g)
+    for tid, games in by_team_games.items():
+        games.sort(key=lambda g: g.start_time)
+        parts = []
+        for g in games:
+            opp = g.away_team_id if g.home_team_id == tid else g.home_team_id
+            when = g.start_time.strftime("%a %H:%M")
+            parts.append(f"{when} v {team_names.get(opp, opp)} ({field_name.get(g.field_id, g.field_id)})")
+        lines.append(f"  - {team_names.get(tid, tid)}: {'; '.join(parts)}")
     return "\n".join(lines)
 
 

@@ -135,3 +135,11 @@ remove_time_preference / remove_field_preference added.
 ## D22 — Queued (solver objective, M6 lane): pack-first objective abandons available fields
 (P1: field restricted by 1h → 0 games; P5/P2: 20/20/8/0 imbalance). Needs a spread/idle-field
 penalty term in the CP-SAT objective + making the "use all my fields" ask expressible.
+
+## D23 — Memoized solve keyed by spec fingerprint; digest gains game-level data (round 3, P5)
+CP-SAT is nondeterministic across runs, so the digest tool's independent re-solve could describe
+a different (equally optimal) schedule than the panel rendered — manufacturing a "stale panel"
+dispute. `solve_current(session)` memoizes on the clamped spec's JSON fingerprint; the panel's
+speculative solve and the agent's digest now always describe the same solution. The digest also
+lists every game per team (day, time, opponent, field) so the agent never asserts matchup facts
+it cannot see, and prompt rule 7 scopes claims to summary contents.
