@@ -26,6 +26,7 @@ WebSocket protocol (JSON both directions), keyed to one session id:
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -137,7 +138,22 @@ def create_app(
                 text = str(msg.get("text", "")).strip()
                 if not text:
                     continue
-                await _handle_chat(ws, live, manager, solver, text)
+                try:
+                    await _handle_chat(ws, live, manager, solver, text)
+                except WebSocketDisconnect:
+                    raise
+                except Exception:
+                    # A failed turn must not kill the connection loop — the director
+                    # would see their message silently vanish with no way to recover.
+                    logging.getLogger("tourneydesk").exception("chat turn failed")
+                    await ws.send_json(
+                        {
+                            "type": "error",
+                            "message": (
+                                "Something went wrong handling that message. Your draft is safe — please send it again."
+                            ),
+                        }
+                    )
         except WebSocketDisconnect:
             pass
         finally:

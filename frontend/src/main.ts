@@ -138,6 +138,9 @@ function handleEvent(ev: ServerEvent) {
       break;
     case "error":
       console.error("server error:", ev.message);
+      // Surface it in the transcript — a silently swallowed error reads as a hang.
+      state.chat.push({ role: "agent", text: `⚠ ${ev.message}` });
+      renderChatPanel();
       break;
   }
 }
