@@ -15,7 +15,7 @@ from typing import Any
 import anthropic
 
 from tourneydesk.prompts import SYSTEM_PROMPT
-from tourneydesk.providers.base import AgentTurn
+from tourneydesk.providers.base import AgentTurn, TextDelta
 from tourneydesk.session import SpecSession
 from tourneydesk.tools import TOOLS, dispatch
 
@@ -34,7 +34,7 @@ class ClaudeIntake:
         self._client = anthropic.Anthropic()
         self._messages: list[dict[str, Any]] = []
 
-    async def send(self, director_message: str) -> AgentTurn:
+    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn:
         self._messages.append({"role": "user", "content": director_message})
 
         echoes: list[str] = []
@@ -63,6 +63,12 @@ class ClaudeIntake:
                 request_kwargs["thinking"] = {"type": "adaptive"}
 
             with self._client.messages.stream(**request_kwargs) as stream:
+                if on_text_delta is not None:
+                    # Forward assistant text to the sink as it is generated so
+                    # the web UI can render tokens live. `text_stream` yields
+                    # only the natural-language text blocks (not tool JSON).
+                    for chunk in stream.text_stream:
+                        on_text_delta(chunk)
                 response = stream.get_final_message()
 
             logger.info(

@@ -9,6 +9,12 @@ from typing import Any, Protocol, runtime_checkable
 
 from tourneydesk.session import SpecSession
 
+# A sink for streaming assistant text as it is generated. Called (possibly from
+# a worker thread) with each new chunk of assistant text. Must be cheap and
+# non-blocking -- the web layer forwards chunks onto the event loop via
+# `loop.call_soon_threadsafe`. `None` means "don't stream, just return the turn".
+TextDelta = Callable[[str], None]
+
 
 @dataclass
 class AgentTurn:
@@ -26,7 +32,7 @@ class IntakeProvider(Protocol):
 
     session: SpecSession
 
-    async def send(self, director_message: str) -> AgentTurn: ...
+    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn: ...
 
 
 @runtime_checkable
