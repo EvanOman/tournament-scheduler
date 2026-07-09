@@ -258,7 +258,7 @@ async def _run_brief_async(brief_dir: Path, provider_name: str, max_turns: int) 
     golden_path = brief_dir / "golden_spec.yaml"
     if golden_path.exists():
         golden_spec = load_spec(golden_path)
-        result_kwargs["score"] = score_spec(final_spec, golden_spec)
+        result_kwargs["score"] = score_spec(final_spec, golden_spec, facts_text=brief.get("facts"))
 
     if brief["expect_infeasible"]:
         pools = assign_pools(final_spec)

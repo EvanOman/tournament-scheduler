@@ -1,0 +1,124 @@
+{
+  "generated_at": "20260709T191431Z",
+  "model": "claude-opus-4-8",
+  "prompt_version": "2797df296b2f",
+  "provider": "claude",
+  "briefs": [
+    {
+      "brief_id": "b01_clean_small",
+      "title": "Clean 24-team fall kickoff",
+      "difficulty": "easy",
+      "categories": [
+        "clean"
+      ],
+      "provider": "claude",
+      "expect_infeasible": false,
+      "skipped": false,
+      "skip_reason": null,
+      "max_turns": 24,
+      "turns_used": 4,
+      "wall_time_seconds": 89.63222904197755,
+      "input_tokens": null,
+      "output_tokens": null,
+      "intake_complete": true,
+      "spec_materialized": true,
+      "missing_facts": [],
+      "assumptions": [
+        "Assumed placeholder team names for U9 Boys (8 teams, names not stated)",
+        "Assumed placeholder team names for U11 Girls (8 teams, names not stated)",
+        "Assumed placeholder team names for U13 Boys (8 teams, names not stated)"
+      ],
+      "score": {
+        "divisions": {
+          "category": "divisions",
+          "matched": 0,
+          "missing": [
+            "division 'u9b' (U9 Boys) has mismatched params: bracket_after_pools: golden=True final=False.",
+            "division 'u11g' (U11 Girls) has mismatched params: bracket_after_pools: golden=True final=False.",
+            "division 'u13b' (U13 Boys) has mismatched params: bracket_after_pools: golden=True final=False."
+          ],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "teams": {
+          "category": "teams",
+          "matched": 3,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fields": {
+          "category": "fields",
+          "matched": 4,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "coaching_conflicts": {
+          "category": "coaching_conflicts",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "team_avoidances": {
+          "category": "team_avoidances",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "time_preferences": {
+          "category": "time_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "field_preferences": {
+          "category": "field_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "precision": 1.0,
+        "recall": 0.7,
+        "f1": 0.8235294117647058,
+        "hallucinated_count": 0
+      },
+      "conflict_extracted": null,
+      "conflict_summary": null,
+      "conflict_families": [],
+      "golden_conflict_families": [],
+      "conflict_families_match": null,
+      "error": null
+    }
+  ],
+  "aggregate": {
+    "num_briefs": 1,
+    "num_scored": 1,
+    "num_skipped": 0,
+    "num_incomplete": 0,
+    "mean_precision": 1.0,
+    "mean_recall": 0.7,
+    "mean_f1": 0.8235294117647058,
+    "total_hallucinated": 0,
+    "infeasible_briefs": 0,
+    "infeasible_conflict_family_matches": 0
+  }
+}

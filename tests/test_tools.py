@@ -5,20 +5,58 @@ from __future__ import annotations
 from tourneydesk.session import SpecSession
 from tourneydesk.tools import TOOLS, dispatch
 
+# The API caps compiled-grammar size for strict tools, and the cap is TIGHTER
+# with adaptive thinking enabled: empirically (claude-opus-4-8, 2026-07-09) this
+# suite is accepted with at most these 5 strict tools when thinking is on. The
+# division tools use sentinels (-1 / 'unspecified' / 'unchanged') instead of
+# null unions to fit the separate 16-union budget. dispatch() validates
+# non-strict inputs locally and returns is_error results the model can correct.
+STRICT_TOOLS = {
+    "add_division",
+    "update_division",
+    "add_teams",
+    "add_field",
+    "set_field_availability",
+}
+
 
 class TestSchemas:
-    # Strict compilation is off suite-wide: 17 tools with nullable unions exceed the
-    # API's compiled-grammar budget (live 400s: union cap, then grammar size). Local
-    # dispatch() validation + is_error retries cover what strict would guarantee.
-    def test_no_tool_is_strict_and_schema_shape_holds(self):
+    def test_strictness_split_matches_grammar_budget(self):
         for tool in TOOLS:
-            assert tool.get("strict") is False, f"{tool['name']} must not be strict (grammar budget)"
+            expected = tool["name"] in STRICT_TOOLS
+            assert tool.get("strict") is expected, f"{tool['name']} strict should be {expected}"
+
+    def test_schema_shape_holds(self):
+        for tool in TOOLS:
             schema = tool["input_schema"]
             assert schema["type"] == "object"
             assert schema["additionalProperties"] is False, f"{tool['name']} allows additionalProperties"
             props = set(schema["properties"].keys())
             required = set(schema["required"])
             assert props == required, f"{tool['name']}: required {required} != properties {props}"
+
+    def test_union_typed_parameter_budget(self):
+        # The API rejects tool suites with more than 16 union-typed params
+        # (type arrays or anyOf), counted across nested schemas.
+        def count_unions(node: object) -> int:
+            if isinstance(node, dict):
+                n = 1 if (isinstance(node.get("type"), list) or "anyOf" in node) else 0
+                return n + sum(count_unions(v) for v in node.values())
+            if isinstance(node, list):
+                return sum(count_unions(v) for v in node)
+            return 0
+
+        total = sum(count_unions(t["input_schema"]) for t in TOOLS)
+        assert total <= 16, f"{total} union-typed parameters exceeds the API limit of 16"
+
+    def test_strict_division_tools_have_no_unions(self):
+        # Strict + sentinel design: the division tools must stay union-free.
+        for tool in TOOLS:
+            if tool["name"] not in ("add_division", "update_division"):
+                continue
+            for prop_name, prop in tool["input_schema"]["properties"].items():
+                assert not isinstance(prop.get("type"), list), f"{tool['name']}.{prop_name} uses a type union"
+                assert "anyOf" not in prop, f"{tool['name']}.{prop_name} uses anyOf"
 
     def test_every_tool_has_a_name_and_description(self):
         for tool in TOOLS:

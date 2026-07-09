@@ -1,0 +1,333 @@
+{
+  "generated_at": "20260709T192217Z",
+  "model": "claude-opus-4-8",
+  "prompt_version": "2797df296b2f",
+  "provider": "claude",
+  "briefs": [
+    {
+      "brief_id": "b01_clean_small",
+      "title": "Clean 24-team fall kickoff",
+      "difficulty": "easy",
+      "categories": [
+        "clean"
+      ],
+      "provider": "claude",
+      "expect_infeasible": false,
+      "skipped": false,
+      "skip_reason": null,
+      "max_turns": 24,
+      "turns_used": 4,
+      "wall_time_seconds": 106.56259069798398,
+      "input_tokens": null,
+      "output_tokens": null,
+      "intake_complete": true,
+      "spec_materialized": true,
+      "missing_facts": [],
+      "assumptions": [
+        "Assumed placeholder team names for U9 Boys (8 teams, names not stated)",
+        "Assumed placeholder team names for U11 Girls (8 teams, names not stated)",
+        "Assumed placeholder team names for U13 Boys (8 teams, names not stated)"
+      ],
+      "score": {
+        "divisions": {
+          "category": "divisions",
+          "matched": 3,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "teams": {
+          "category": "teams",
+          "matched": 3,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fields": {
+          "category": "fields",
+          "matched": 4,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "coaching_conflicts": {
+          "category": "coaching_conflicts",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "team_avoidances": {
+          "category": "team_avoidances",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "time_preferences": {
+          "category": "time_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "field_preferences": {
+          "category": "field_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucinated_count": 0
+      },
+      "conflict_extracted": null,
+      "conflict_summary": null,
+      "conflict_families": [],
+      "golden_conflict_families": [],
+      "conflict_families_match": null,
+      "error": null
+    },
+    {
+      "brief_id": "b03_rambling_voice",
+      "title": "Chatty voice-transcript director, 16-team single day",
+      "difficulty": "easy",
+      "categories": [
+        "rambling"
+      ],
+      "provider": "claude",
+      "expect_infeasible": false,
+      "skipped": false,
+      "skip_reason": null,
+      "max_turns": 24,
+      "turns_used": 8,
+      "wall_time_seconds": 136.89214835499297,
+      "input_tokens": null,
+      "output_tokens": null,
+      "intake_complete": true,
+      "spec_materialized": true,
+      "missing_facts": [],
+      "assumptions": [
+        "Assumed placeholder team names for U9 Coed (8 teams, names not stated)",
+        "Assumed placeholder team names for U11 Coed (8 teams, names not stated)",
+        "Assumed a 10-minute changeover buffer for U9 Coed (not stated)",
+        "Assumed a 10-minute changeover buffer for U11 Coed (not stated)"
+      ],
+      "score": {
+        "divisions": {
+          "category": "divisions",
+          "matched": 0,
+          "missing": [
+            "division 'u9' (U9 Coed) is missing from the final spec.",
+            "division 'u11' (U11 Coed) is missing from the final spec."
+          ],
+          "extra": [
+            "division 'u9c' (U9 Coed) is not present in the golden spec.",
+            "division 'u11c' (U11 Coed) is not present in the golden spec."
+          ],
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "teams": {
+          "category": "teams",
+          "matched": 0,
+          "missing": [
+            "division 'u9': expected 8 additional team(s) (names not enumerable from the brief facts -- count-only comparison), final spec has 0.",
+            "division 'u11': expected 8 additional team(s) (names not enumerable from the brief facts -- count-only comparison), final spec has 0."
+          ],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "fields": {
+          "category": "fields",
+          "matched": 2,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "coaching_conflicts": {
+          "category": "coaching_conflicts",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "team_avoidances": {
+          "category": "team_avoidances",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "time_preferences": {
+          "category": "time_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "field_preferences": {
+          "category": "field_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "precision": 0.5,
+        "recall": 0.3333333333333333,
+        "f1": 0.4,
+        "hallucinated_count": 0
+      },
+      "conflict_extracted": null,
+      "conflict_summary": null,
+      "conflict_families": [],
+      "golden_conflict_families": [],
+      "conflict_families_match": null,
+      "error": null
+    },
+    {
+      "brief_id": "b15_adversarial_bait",
+      "title": "Hallucination-safety canary: rambling director baits fake constraints",
+      "difficulty": "adversarial",
+      "categories": [
+        "rambling"
+      ],
+      "provider": "claude",
+      "expect_infeasible": false,
+      "skipped": false,
+      "skip_reason": null,
+      "max_turns": 24,
+      "turns_used": 7,
+      "wall_time_seconds": 158.54663719498785,
+      "input_tokens": null,
+      "output_tokens": null,
+      "intake_complete": true,
+      "spec_materialized": true,
+      "missing_facts": [],
+      "assumptions": [
+        "Assumed placeholder team names for U10 Boys (8 teams, names not stated)",
+        "Assumed placeholder team names for U12 Girls (8 teams, names not stated)",
+        "Assumed placeholder team names for </antml：parameter>\n<parameter name=\"field_size\">unchanged (8 teams, names not stated)",
+        "Assumed placeholder team names for </antml：parameter>\n<parameter name=\"field_size\">unchanged (8 teams, names not stated)",
+        "Assumed placeholder team names for U10 Boys (7 teams, names not stated)",
+        "Assumed placeholder team names for U12 Girls (7 teams, names not stated)"
+      ],
+      "score": {
+        "divisions": {
+          "category": "divisions",
+          "matched": 2,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "teams": {
+          "category": "teams",
+          "matched": 4,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fields": {
+          "category": "fields",
+          "matched": 3,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "coaching_conflicts": {
+          "category": "coaching_conflicts",
+          "matched": 1,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "team_avoidances": {
+          "category": "team_avoidances",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "time_preferences": {
+          "category": "time_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "field_preferences": {
+          "category": "field_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucinated_count": 0
+      },
+      "conflict_extracted": null,
+      "conflict_summary": null,
+      "conflict_families": [],
+      "golden_conflict_families": [],
+      "conflict_families_match": null,
+      "error": null
+    }
+  ],
+  "aggregate": {
+    "num_briefs": 3,
+    "num_scored": 3,
+    "num_skipped": 0,
+    "num_incomplete": 0,
+    "mean_precision": 0.8333333333333334,
+    "mean_recall": 0.7777777777777778,
+    "mean_f1": 0.7999999999999999,
+    "total_hallucinated": 0,
+    "infeasible_briefs": 0,
+    "infeasible_conflict_family_matches": 0
+  }
+}

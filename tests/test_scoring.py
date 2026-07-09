@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+import yaml
 
 from evals.scoring import score_spec
 from tournament_scheduler.models import (
@@ -161,7 +162,7 @@ def test_placeholder_team_count_mismatch_is_a_miss():
 
     assert score.teams.matched == 0
     assert len(score.teams.missing) == 1
-    assert "expected 4 team(s)" in score.teams.missing[0]
+    assert "expected 4 additional team(s)" in score.teams.missing[0]
 
 
 def test_division_param_mismatch_is_a_division_category_miss():
@@ -204,3 +205,79 @@ def test_golden_spec_self_check_is_perfect(brief_dir: Path):
     assert score.recall == 1.0, f"{brief_dir.name}: {score.model_dump_json(indent=2)}"
     assert score.f1 == 1.0, f"{brief_dir.name}: {score.model_dump_json(indent=2)}"
     assert score.hallucinated_count == 0, f"{brief_dir.name}: {score.model_dump_json(indent=2)}"
+
+
+@pytest.mark.parametrize("brief_dir", BRIEF_DIRS, ids=BRIEF_IDS)
+def test_golden_self_check_with_facts_is_perfect(brief_dir: Path):
+    """Self-check must also hold when team-name matching is scoped to the facts."""
+    golden_path = brief_dir / "golden_spec.yaml"
+    if not golden_path.exists():
+        pytest.skip(f"{brief_dir.name}: no golden_spec.yaml")
+
+    brief = yaml.safe_load((brief_dir / "brief.yaml").read_text())
+    golden = load_spec(golden_path)
+    score = score_spec(golden, golden, facts_text=brief.get("facts"))
+
+    assert score.f1 == 1.0, f"{brief_dir.name}: {score.model_dump_json(indent=2)}"
+    assert score.hallucinated_count == 0
+
+
+def test_untraceable_golden_team_names_score_count_only():
+    """Golden names the persona can never state must not tank the teams score.
+
+    The golden spec names real clubs, but the facts never enumerate them --
+    an agent that captured the correct COUNT via placeholders scores a match.
+    """
+    golden = _base_spec(
+        teams=[
+            _team("t1", "Coastal FC"),
+            _team("t2", "Highland United"),
+            _team("t3", "Riverside SC"),
+            _team("t4", "Summit FC"),
+        ]
+    )
+    final = _base_spec(
+        teams=[
+            _team("u10_team_1", "Team 1"),
+            _team("u10_team_2", "Team 2"),
+            _team("u10_team_3", "Team 3"),
+            _team("u10_team_4", "Team 4"),
+        ]
+    )
+    facts = "8 teams... er, 4 teams in the division. No names decided yet."
+    score = score_spec(final, golden, facts_text=facts)
+    assert score.teams.recall == 1.0, score.teams.model_dump_json(indent=2)
+    assert score.teams.precision == 1.0
+
+    # Wrong count still fails.
+    short = _base_spec(teams=[_team("u10_team_1", "Team 1"), _team("u10_team_2", "Team 2")])
+    score2 = score_spec(short, golden, facts_text=facts)
+    assert score2.teams.recall < 1.0
+
+
+def test_bracket_flag_not_scored_when_facts_are_silent():
+    """bracket_after_pools only counts when the facts mention brackets/playoffs."""
+    golden = _base_spec()  # bracket_after_pools=True (model default)
+    final = _base_spec(divisions=[_division(bracket_after_pools=False)])
+
+    silent_facts = "One division, four teams, 25 minute games on one field."
+    assert score_spec(final, golden, facts_text=silent_facts).divisions.recall == 1.0
+
+    stated_facts = "One division; top four go to a single-elimination bracket after pools."
+    assert score_spec(final, golden, facts_text=stated_facts).divisions.recall < 1.0
+
+    # No facts context at all -> strict comparison (self-check path unaffected).
+    assert score_spec(final, golden).divisions.recall < 1.0
+
+
+def test_divisions_match_by_name_when_agent_chose_different_id():
+    """Agent-derived division ids must not tank scoring; name is the stable key."""
+    golden = _base_spec()  # division id 'u10', name 'U10 Boys'
+    final = _base_spec(
+        divisions=[_division(id_="u10_boys")],
+        teams=[_team(f"u10_boys_t{i}", name, "u10_boys") for i, name in enumerate(_DEFAULT_TEAM_NAMES, 1)],
+    )
+    score = score_spec(final, golden)
+    assert score.divisions.recall == 1.0, score.divisions.model_dump_json(indent=2)
+    assert score.divisions.precision == 1.0
+    assert score.teams.recall == 1.0, score.teams.model_dump_json(indent=2)

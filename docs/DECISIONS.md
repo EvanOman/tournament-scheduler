@@ -94,3 +94,32 @@ argument (more important now that schemas are non-strict — see D-strict note i
 game format. Vic (P2) said "U10 plays 8v8 on the small fields" but the enum maps small→"4v4/3v3".
 Fix direction: per-division format string decoupled from field size. Not blocking; queued for a
 follow-up branch with the M5 explanation work.
+
+## D16 — Strict tools rationed to an empirical grammar budget (2026-07-09, eval-runner lane)
+Live eval canaries exposed three successive API rejections of the tool suite: (1) nullable
+enum unions are invalid in strict schemas; (2) >16 union-typed params across the suite is
+rejected outright; (3) the compiled-grammar size cap is TIGHTER with adaptive thinking on —
+probing showed at most 5 of our tools can be strict (claude-opus-4-8, 2026-07-09). Resolution
+supersedes D-strict/d46c5b2's all-non-strict fallback: the 5 highest-risk mutation tools
+(add_division, update_division, add_teams, add_field, set_field_availability) are strict, with
+the division tools converted to sentinel optionals (-1 / 'unspecified' / 'unchanged' — decoded
+back to None in dispatch) to stay union-free. `tests/test_tools.py::TestSchemas` enforces the
+split and both budgets. Rejected: all-strict (API rejects), all-non-strict (gives up
+constrained decoding exactly where malformed calls are most likely).
+
+## D17 — Facts-scoped eval scoring (2026-07-09, eval-runner lane)
+A constraint the persona cannot state must not be scored. 13/15 corpus briefs have golden team
+rosters the `facts` never enumerate, and golden `bracket_after_pools` is just the model default
+when facts never mention playoffs — strict comparison tanked b01 to F1=0.14 for reasons no
+agent could fix. `score_spec` now takes `facts_text`: team-name matching applies only to names
+present in facts (others compare by count); `bracket_after_pools` is compared only when facts
+mention bracket/playoff keywords. Divisions match by id with normalized-name fallback (agent-
+derived ids like 'u9c' vs golden 'u9' are implementation details), cascading through teams and
+preference targets. Golden self-checks (with and without facts) gate drift. After these fixes,
+live smoke: b01/b03/b15 all F1=1.000, hallucinated=0 — including the adversarial bait canary.
+
+## D18 — Eval results JSON are committed evidence (2026-07-09, eval-runner lane)
+`evals/results/*.json` are NOT gitignored: goal prompt §4 requires every eval run recorded with
+model id, prompt version (sha256 of prompts.py, 12 hex), and per-brief breakdown, with trends
+tracked over time. Rejected: ignoring them as build artifacts (kills trend tracking and makes
+eval claims unauditable).

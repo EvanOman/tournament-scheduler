@@ -62,10 +62,14 @@ def _tool(
     *,
     strict: bool = False,
 ) -> dict[str, Any]:
-    # Strict compilation is off for the whole suite: 17 tools with nullable unions
-    # exceed the API's compiled-grammar budget (16-union cap, then overall grammar
-    # size). dispatch() validates every input locally and returns is_error results
-    # the model can correct, which covers what strict would have guaranteed.
+    # Strict compilation is rationed: the API caps compiled-grammar size, and the
+    # cap is TIGHTER with adaptive thinking on (empirically, claude-opus-4-8
+    # 2026-07-09: at most 5 of these tools may be strict when thinking is
+    # enabled; 17 nullable-union tools blow the 16-union cap outright). The five
+    # highest-risk mutation tools are strict -- their division schemas use
+    # sentinels (-1 / 'unspecified' / 'unchanged') instead of null unions to fit
+    # the union budget. dispatch() validates everything else locally and returns
+    # is_error results the model can correct.
     return {
         "name": name,
         "description": description,
@@ -97,9 +101,10 @@ TOOLS: list[dict[str, Any]] = [
     _tool(
         "add_division",
         "Call when the director introduces a new age group / division (e.g. 'U10 Boys'). Provide "
-        "field_size and game_duration_minutes if stated; leave other fields null if not stated -- "
-        "they will be filled with labeled defaults later. Do not guess game_duration_minutes; ask "
-        "if genuinely unknown.",
+        "field_size and game_duration_minutes if stated; pass the not-stated sentinel (-1 or "
+        "'unspecified') for anything the director has not said -- it will be filled with a labeled "
+        "default later. Never invent a value the director did not state. Do not guess "
+        "game_duration_minutes; ask if genuinely unknown.",
         {
             "id": {"type": "string", "description": "Short unique id, e.g. 'u10b'."},
             "name": {"type": "string", "description": "Human-readable division name, e.g. 'U10 Boys'."},
@@ -109,23 +114,22 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Field size category this division plays on.",
             },
             "game_duration_minutes": {"type": "integer", "description": "Length of one game, in minutes."},
-            "halftime_minutes": {"type": ["integer", "null"], "description": "Halftime length, or null if not stated."},
+            "halftime_minutes": {"type": "integer", "description": "Halftime length in minutes; -1 if not stated."},
             "buffer_minutes": {
-                "type": ["integer", "null"],
-                "description": "Changeover buffer between games on the same field, or null if not stated.",
+                "type": "integer",
+                "description": "Changeover buffer between games on the same field, in minutes; -1 if not stated.",
             },
             "min_rest_minutes": {
-                "type": ["integer", "null"],
-                "description": "Minimum rest between games for any team, or null if not stated.",
+                "type": "integer",
+                "description": "Minimum rest between games for any team, in minutes; -1 if not stated.",
             },
-            "games_per_team": {
-                "type": ["integer", "null"],
-                "description": "Pool-play games per team, or null if not stated.",
-            },
-            "pool_size": {"type": ["integer", "null"], "description": "Target teams per pool, or null if not stated."},
+            "games_per_team": {"type": "integer", "description": "Pool-play games per team; -1 if not stated."},
+            "pool_size": {"type": "integer", "description": "Target teams per pool; -1 if not stated."},
             "bracket_after_pools": {
-                "type": ["boolean", "null"],
-                "description": "Whether an elimination bracket follows pool play, or null if not stated.",
+                "type": "string",
+                "enum": ["unspecified", "true", "false"],
+                "description": "MUST be 'unspecified' unless the director explicitly mentioned (or ruled out) "
+                "a playoff/elimination bracket after pool play.",
             },
             "source_quote": _SOURCE_QUOTE_PROP,
         },
@@ -142,22 +146,32 @@ TOOLS: list[dict[str, Any]] = [
             "bracket_after_pools",
             "source_quote",
         ],
+        strict=True,
     ),
     _tool(
         "update_division",
-        "Call when the director corrects or adds detail to a division already added. Any field left "
-        "null is left unchanged -- only pass the fields that are actually changing.",
+        "Call when the director corrects or adds detail to a division already added. Pass the "
+        "leave-unchanged sentinel ('' / 'unchanged' / -1) for every field that is NOT changing -- "
+        "only give real values for the fields the director actually corrected.",
         {
             "id": {"type": "string", "description": "Id of the division to update."},
-            "name": {"type": ["string", "null"]},
-            "field_size": {"anyOf": [{"type": "string", "enum": _FIELD_SIZE_ENUM}, {"type": "null"}]},
-            "game_duration_minutes": {"type": ["integer", "null"]},
-            "halftime_minutes": {"type": ["integer", "null"]},
-            "buffer_minutes": {"type": ["integer", "null"]},
-            "min_rest_minutes": {"type": ["integer", "null"]},
-            "games_per_team": {"type": ["integer", "null"]},
-            "pool_size": {"type": ["integer", "null"]},
-            "bracket_after_pools": {"type": ["boolean", "null"]},
+            "name": {"type": "string", "description": "New name, or '' to leave unchanged."},
+            "field_size": {
+                "type": "string",
+                "enum": [*_FIELD_SIZE_ENUM, "unchanged"],
+                "description": "New field size, or 'unchanged'.",
+            },
+            "game_duration_minutes": {"type": "integer", "description": "New game length in minutes; -1 = unchanged."},
+            "halftime_minutes": {"type": "integer", "description": "New halftime minutes; -1 = unchanged."},
+            "buffer_minutes": {"type": "integer", "description": "New buffer minutes; -1 = unchanged."},
+            "min_rest_minutes": {"type": "integer", "description": "New minimum rest minutes; -1 = unchanged."},
+            "games_per_team": {"type": "integer", "description": "New games per team; -1 = unchanged."},
+            "pool_size": {"type": "integer", "description": "New pool size; -1 = unchanged."},
+            "bracket_after_pools": {
+                "type": "string",
+                "enum": ["unchanged", "true", "false"],
+                "description": "New bracket setting, or 'unchanged'.",
+            },
             "source_quote": _SOURCE_QUOTE_PROP,
         },
         [
@@ -173,6 +187,7 @@ TOOLS: list[dict[str, Any]] = [
             "bracket_after_pools",
             "source_quote",
         ],
+        strict=True,
     ),
     _tool(
         "remove_division",
@@ -203,6 +218,7 @@ TOOLS: list[dict[str, Any]] = [
             "source_quote": _SOURCE_QUOTE_PROP,
         },
         ["division_id", "teams", "source_quote"],
+        strict=True,
     ),
     _tool(
         "set_team_count",
@@ -232,6 +248,7 @@ TOOLS: list[dict[str, Any]] = [
             "source_quote": _SOURCE_QUOTE_PROP,
         },
         ["id", "name", "size", "availability", "source_quote"],
+        strict=True,
     ),
     _tool(
         "set_field_availability",
@@ -243,6 +260,7 @@ TOOLS: list[dict[str, Any]] = [
             "source_quote": _SOURCE_QUOTE_PROP,
         },
         ["field_id", "availability", "source_quote"],
+        strict=True,
     ),
     _tool(
         "remove_field",
@@ -382,6 +400,30 @@ def _summarize(session: SpecSession) -> str:
     return "\n".join(lines)
 
 
+# Sentinel decoding: the strict division tools express "not stated / leave
+# unchanged" via sentinels (-1, '', 'unspecified', 'unchanged') instead of null
+# unions (see _tool's strict note). These map sentinels back to None for
+# SpecSession, while tolerating plain None/bool from scripted FakeIntake inputs.
+
+
+def _opt_int(value: Any) -> int | None:
+    if value is None or value == -1:
+        return None
+    return int(value)
+
+
+def _opt_str(value: Any) -> str | None:
+    if value is None or value == "" or value == "unchanged":
+        return None
+    return str(value)
+
+
+def _opt_bool(value: Any) -> bool | None:
+    if value is None or isinstance(value, bool):
+        return value
+    return {"true": True, "false": False}.get(str(value).lower())
+
+
 def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> ToolResult:
     """Apply one tool call to `session`, returning a ToolResult.
 
@@ -409,12 +451,12 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
                 name=tool_input["name"],
                 field_size=tool_input["field_size"],
                 game_duration_minutes=tool_input["game_duration_minutes"],
-                halftime_minutes=tool_input.get("halftime_minutes"),
-                buffer_minutes=tool_input.get("buffer_minutes"),
-                min_rest_minutes=tool_input.get("min_rest_minutes"),
-                games_per_team=tool_input.get("games_per_team"),
-                pool_size=tool_input.get("pool_size"),
-                bracket_after_pools=tool_input.get("bracket_after_pools"),
+                halftime_minutes=_opt_int(tool_input.get("halftime_minutes")),
+                buffer_minutes=_opt_int(tool_input.get("buffer_minutes")),
+                min_rest_minutes=_opt_int(tool_input.get("min_rest_minutes")),
+                games_per_team=_opt_int(tool_input.get("games_per_team")),
+                pool_size=_opt_int(tool_input.get("pool_size")),
+                bracket_after_pools=_opt_bool(tool_input.get("bracket_after_pools")),
                 source_quote=tool_input["source_quote"],
             )
             return ToolResult(
@@ -424,15 +466,15 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
         if name == "update_division":
             d = session.update_division(
                 id=tool_input["id"],
-                name=tool_input.get("name"),
-                field_size=tool_input.get("field_size"),
-                game_duration_minutes=tool_input.get("game_duration_minutes"),
-                halftime_minutes=tool_input.get("halftime_minutes"),
-                buffer_minutes=tool_input.get("buffer_minutes"),
-                min_rest_minutes=tool_input.get("min_rest_minutes"),
-                games_per_team=tool_input.get("games_per_team"),
-                pool_size=tool_input.get("pool_size"),
-                bracket_after_pools=tool_input.get("bracket_after_pools"),
+                name=_opt_str(tool_input.get("name")),
+                field_size=_opt_str(tool_input.get("field_size")),
+                game_duration_minutes=_opt_int(tool_input.get("game_duration_minutes")),
+                halftime_minutes=_opt_int(tool_input.get("halftime_minutes")),
+                buffer_minutes=_opt_int(tool_input.get("buffer_minutes")),
+                min_rest_minutes=_opt_int(tool_input.get("min_rest_minutes")),
+                games_per_team=_opt_int(tool_input.get("games_per_team")),
+                pool_size=_opt_int(tool_input.get("pool_size")),
+                bracket_after_pools=_opt_bool(tool_input.get("bracket_after_pools")),
                 source_quote=tool_input["source_quote"],
             )
             return ToolResult(f"Got it — updated {d.name}.")

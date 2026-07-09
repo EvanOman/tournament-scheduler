@@ -142,21 +142,62 @@ def _division_param(division: DivisionSpec, name: str) -> object:
     return _unwrap(getattr(division, name))
 
 
-def _compare_divisions(final: TournamentSpec, golden: TournamentSpec) -> CategoryScore:
+def _division_match_map(final: TournamentSpec, golden: TournamentSpec) -> dict[str, str]:
+    """Map golden division id -> matching final division id.
+
+    Matches by identical id first, then by normalized name ("U9 Coed" matches
+    whether the agent chose id 'u9', 'u9c', or 'u9_coed'). Ids are agent-derived
+    implementation details, same as team ids -- name is the stable key.
+    """
     final_by_id = {d.id: d for d in final.divisions}
-    golden_ids = {d.id for d in golden.divisions}
+    final_by_name = {d.name.strip().lower(): d for d in final.divisions}
+    mapping: dict[str, str] = {}
+    used: set[str] = set()
+    for gd in golden.divisions:
+        fd = final_by_id.get(gd.id)
+        if fd is None or fd.id in used:
+            fd = final_by_name.get(gd.name.strip().lower())
+        if fd is not None and fd.id not in used:
+            mapping[gd.id] = fd.id
+            used.add(fd.id)
+    return mapping
+
+
+_BRACKET_KEYWORDS = ("bracket", "playoff", "elimination", "knockout", "knock-out", "finals")
+
+
+def _compare_divisions(
+    final: TournamentSpec,
+    golden: TournamentSpec,
+    facts_text: str | None = None,
+) -> CategoryScore:
+    """Compare divisions by id and scheduling params.
+
+    `bracket_after_pools` is only compared when the brief facts actually
+    mention a bracket/playoff: the flag is not yet solver-relevant (bracket
+    phase lands at M7) and, when the facts are silent, the golden value is
+    just the model default -- holding the agent to it would score an
+    unstateable fact (same principle as facts-scoped team names).
+    """
+    facts_lower = facts_text.lower() if facts_text else None
+    score_bracket = facts_lower is None or any(k in facts_lower for k in _BRACKET_KEYWORDS)
+    param_fields = [name for name in _DIVISION_PARAM_FIELDS if score_bracket or name != "bracket_after_pools"]
+
+    final_by_id = {d.id: d for d in final.divisions}
+    div_map = _division_match_map(final, golden)
+    mapped_final_ids = set(div_map.values())
     matched = 0
     missing: list[str] = []
     extra: list[str] = []
 
     for gd in golden.divisions:
-        fd = final_by_id.get(gd.id)
+        fd = final_by_id.get(div_map.get(gd.id, ""))
         if fd is None:
             missing.append(f"division '{gd.id}' ({gd.name}) is missing from the final spec.")
             continue
         diffs = [
             f"{name}: golden={_division_param(gd, name)!r} final={_division_param(fd, name)!r}"
-            for name in _DIVISION_PARAM_FIELDS
+            for name in param_fields
             if _division_param(gd, name) != _division_param(fd, name)
         ]
         if diffs:
@@ -165,7 +206,7 @@ def _compare_divisions(final: TournamentSpec, golden: TournamentSpec) -> Categor
             matched += 1
 
     for fd in final.divisions:
-        if fd.id not in golden_ids:
+        if fd.id not in mapped_final_ids:
             extra.append(f"division '{fd.id}' ({fd.name}) is not present in the golden spec.")
 
     return _build_category("divisions", matched, missing, extra)
@@ -180,38 +221,78 @@ def _all_placeholder_names(teams: list[TeamSpec]) -> bool:
     return bool(teams) and all(_PLACEHOLDER_TEAM_NAME_RE.match(t.name.strip()) for t in teams)
 
 
-def _compare_teams(final: TournamentSpec, golden: TournamentSpec) -> CategoryScore:
+def _compare_teams(
+    final: TournamentSpec,
+    golden: TournamentSpec,
+    facts_text: str | None = None,
+) -> CategoryScore:
+    """Compare team rosters per division.
+
+    Name-level matching only applies to golden teams whose names are actually
+    *stateable* by the simulated director -- i.e. they appear in the brief's
+    `facts` (when `facts_text` is given). A golden name absent from the facts
+    can never be uttered by the persona, so holding the agent accountable for
+    it would make the category structurally unscorable (13/15 corpus briefs
+    have golden rosters that the facts never enumerate). Those teams -- and
+    all-placeholder golden rosters -- degrade to count-only comparison.
+    """
+    facts_lower = facts_text.lower() if facts_text else None
+
     golden_by_div: dict[str, list[TeamSpec]] = {}
     for t in golden.teams:
         golden_by_div.setdefault(t.division_id, []).append(t)
     final_by_div: dict[str, list[TeamSpec]] = {}
     for t in final.teams:
         final_by_div.setdefault(t.division_id, []).append(t)
+    div_map = _division_match_map(final, golden)
 
     matched = 0
     missing: list[str] = []
     extra: list[str] = []
 
     for division_id, gteams in golden_by_div.items():
-        fteams = final_by_div.get(division_id, [])
+        fteams = final_by_div.get(div_map.get(division_id, division_id), [])
 
+        # Split golden teams into name-scoreable (persona could state the
+        # name) and count-only (placeholder, or name untraceable to facts).
         if _all_placeholder_names(gteams):
-            if len(fteams) == len(gteams):
-                matched += 1
-            else:
-                missing.append(
-                    f"division '{division_id}': expected {len(gteams)} team(s) (placeholder names in golden -- "
-                    f"count-only comparison), final spec has {len(fteams)}."
-                )
-            continue
+            scoreable: list[TeamSpec] = []
+        elif facts_lower is None:
+            scoreable = [t for t in gteams if not _PLACEHOLDER_TEAM_NAME_RE.match(t.name.strip())]
+        else:
+            scoreable = [
+                t
+                for t in gteams
+                if not _PLACEHOLDER_TEAM_NAME_RE.match(t.name.strip()) and t.name.strip().lower() in facts_lower
+            ]
 
-        gnames = {t.name.strip().lower() for t in gteams}
+        gnames = {t.name.strip().lower() for t in scoreable}
         fnames = {t.name.strip().lower() for t in fteams}
         matched += len(gnames & fnames)
         for name in sorted(gnames - fnames):
             missing.append(f"division '{division_id}': team '{name}' is missing from the final spec.")
-        for name in sorted(fnames - gnames):
-            extra.append(f"division '{division_id}': team '{name}' is not present in the golden spec.")
+
+        # Teams beyond the name-scoreable set compare by count.
+        count_only_golden = len(gteams) - len(gnames)
+        count_only_final = len(fteams) - len(fnames & gnames)
+        if count_only_golden or not gnames:
+            if count_only_final == count_only_golden:
+                if count_only_golden:
+                    matched += 1
+            elif count_only_final < count_only_golden:
+                missing.append(
+                    f"division '{division_id}': expected {count_only_golden} additional team(s) "
+                    f"(names not enumerable from the brief facts -- count-only comparison), "
+                    f"final spec has {count_only_final}."
+                )
+            else:
+                extra.append(
+                    f"division '{division_id}': final spec has {count_only_final - count_only_golden} "
+                    f"more team(s) than the golden roster (count-only comparison)."
+                )
+        elif fnames - gnames:
+            for name in sorted(fnames - gnames):
+                extra.append(f"division '{division_id}': team '{name}' is not present in the golden spec.")
 
     return _build_category("teams", matched, missing, extra)
 
@@ -278,7 +359,8 @@ def _resolve_target(target: str, target_type: str, spec: TournamentSpec) -> str:
     since a team's id is an implementation detail the agent derives itself.
     """
     if target_type == "division":
-        return target.strip().lower()
+        div_names = {d.id: d.name for d in spec.divisions}
+        return div_names.get(target, target).strip().lower()
     return _team_name_map(spec).get(target, target).strip().lower()
 
 
@@ -451,15 +533,18 @@ def _compare_field_preferences(final: TournamentSpec, golden: TournamentSpec) ->
 _HALLUCINATION_CATEGORIES = ("coaching_conflicts", "team_avoidances", "time_preferences", "field_preferences")
 
 
-def score_spec(final: TournamentSpec, golden: TournamentSpec) -> SpecScore:
+def score_spec(final: TournamentSpec, golden: TournamentSpec, facts_text: str | None = None) -> SpecScore:
     """Compare `final` (the agent's materialized spec) against `golden`.
 
     Pure function: no I/O, no LLM calls. Safe to call with `final is golden`
     (or two structurally-identical specs) as a corpus format self-check --
     that must always yield P=R=F1=1.0 and hallucinated_count=0.
+
+    `facts_text` (the brief's ground-truth prose) scopes team-name matching to
+    names the simulated director could actually state -- see `_compare_teams`.
     """
-    divisions = _compare_divisions(final, golden)
-    teams = _compare_teams(final, golden)
+    divisions = _compare_divisions(final, golden, facts_text=facts_text)
+    teams = _compare_teams(final, golden, facts_text=facts_text)
     fields = _compare_fields(final, golden)
     coaching_conflicts = _compare_coaching_conflicts(final, golden)
     team_avoidances = _compare_team_avoidances(final, golden)

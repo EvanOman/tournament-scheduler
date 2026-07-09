@@ -1,0 +1,119 @@
+{
+  "generated_at": "20260709T192609Z",
+  "model": "claude-opus-4-8",
+  "prompt_version": "2797df296b2f",
+  "provider": "claude",
+  "briefs": [
+    {
+      "brief_id": "b03_rambling_voice",
+      "title": "Chatty voice-transcript director, 16-team single day",
+      "difficulty": "easy",
+      "categories": [
+        "rambling"
+      ],
+      "provider": "claude",
+      "expect_infeasible": false,
+      "skipped": false,
+      "skip_reason": null,
+      "max_turns": 24,
+      "turns_used": 9,
+      "wall_time_seconds": 150.94925728900125,
+      "input_tokens": null,
+      "output_tokens": null,
+      "intake_complete": true,
+      "spec_materialized": true,
+      "missing_facts": [],
+      "assumptions": [
+        "Assumed placeholder team names for U9 Coed (8 teams, names not stated)",
+        "Assumed placeholder team names for U11 Coed (8 teams, names not stated)"
+      ],
+      "score": {
+        "divisions": {
+          "category": "divisions",
+          "matched": 2,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "teams": {
+          "category": "teams",
+          "matched": 2,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fields": {
+          "category": "fields",
+          "matched": 2,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "coaching_conflicts": {
+          "category": "coaching_conflicts",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "team_avoidances": {
+          "category": "team_avoidances",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "time_preferences": {
+          "category": "time_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "field_preferences": {
+          "category": "field_preferences",
+          "matched": 0,
+          "missing": [],
+          "extra": [],
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucinated_count": 0
+      },
+      "conflict_extracted": null,
+      "conflict_summary": null,
+      "conflict_families": [],
+      "golden_conflict_families": [],
+      "conflict_families_match": null,
+      "error": null
+    }
+  ],
+  "aggregate": {
+    "num_briefs": 1,
+    "num_scored": 1,
+    "num_skipped": 0,
+    "num_incomplete": 0,
+    "mean_precision": 1.0,
+    "mean_recall": 1.0,
+    "mean_f1": 1.0,
+    "total_hallucinated": 0,
+    "infeasible_briefs": 0,
+    "infeasible_conflict_family_matches": 0
+  }
+}

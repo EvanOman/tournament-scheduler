@@ -22,4 +22,6 @@ Secrets: `~/.config/tourneydesk/env` (ANTHROPIC_API_KEY). Frontend changes requi
 - `just check` must be green before any commit to main.
 - CLI (`tourneydesk chat`) and web share ONE service layer (`tourneydesk/core`) — never fork logic.
 - Ports: 18780+ only; never kill occupied ports. Package installs: 7-day min-release-age, never override.
-- Tool schemas are non-strict by design (API compiled-grammar budget); `dispatch()` validates locally.
+- Tool strictness is rationed (API compiled-grammar budget, tighter with adaptive thinking): the 5
+  complex mutation tools are strict with sentinel-based optionals; the rest are non-strict and
+  `dispatch()` validates locally. See `tests/test_tools.py::TestSchemas` for the enforced split.
