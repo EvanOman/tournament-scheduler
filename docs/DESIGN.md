@@ -38,9 +38,20 @@ director in plain language.
     (deterministic scripted tool calls; zero network). Both drive the same tools/dispatcher.
   - `tourneydesk/persona.py` — simulated director for CLI harness and evals (separate Claude call,
     persona-prompted from a brief file).
-  - `tourneydesk/cli.py` — `tourneydesk chat [--brief FILE] [--provider claude|fake]`.
+  - `tourneydesk/cli.py` — `tourneydesk chat [--brief FILE] [--provider claude|fake]` and
+    `tourneydesk serve [--port 18780] [--provider claude|fake]`.
+  - `tourneydesk/core/speculative.py` — `SpeculativeSolver`: debounced (1.5s), generation-guarded
+    background solve orchestration driven by injected `solve_fn` + async emit callbacks. Reusable by
+    any frontend; the web layer wires it to WebSocket pushes.
+  - `tourneydesk/web/` — FastAPI frontend over the shared service (M3+M4). `app.py` (REST + per-session
+    WebSocket + static SPA mount), `manager.py` (in-memory live sessions + provider factory),
+    `store.py` (boring SQLite: one row per session, spec/transcript as JSON), `schedule_view.py`
+    (SolveOutcome → UI payload: per-field + per-team grids), `canned.py` (offline demo script).
+    Built SPA assets are committed under `tourneydesk/web/static/`.
 - `evals/` — golden briefs, runner, results (`evals/results/*.json`), trend doc.
-- `frontend/` — Vite + TS SPA (M3+). Backend binds port **18780** by default.
+- `frontend/` — Vite + vanilla-TypeScript SPA (three panels: Chat / Rules / Schedule). Builds into
+  `tourneydesk/web/static/`. Backend binds port **18780** by default (auto-bumps if taken; never
+  kills). WebSocket protocol + streaming seam documented in DECISIONS D7–D10.
 
 ## 3. LLM integration conventions
 
