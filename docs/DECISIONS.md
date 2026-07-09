@@ -74,3 +74,23 @@ Append-only; newest at the bottom of each section. Subagents report decisions he
 ### D12 — Built frontend assets committed under `tourneydesk/web/static/` (2026-07-09)
 - **What:** Vite builds into `tourneydesk/web/static/`, which FastAPI serves via `StaticFiles(html=True)` mounted last (so `/api` and `/ws` win). The built `index.html` + hashed assets are committed. `just check` runs `frontend-check` (typecheck + build) but skips gracefully when `npm` is absent.
 - **Why:** Goal-prompt — the server must run without Node at deploy time. Committing the bundle makes `uv run tourneydesk serve` self-sufficient; the node guard keeps `just check` green on a Python-only box.
+
+## D13 — Session-per-visit with URL-hash rejoin (2026-07-09, persona blocker)
+The frontend joined `sessions[0]` unconditionally, so concurrent visitors landed in one shared
+conversation — the 6-persona validation fleet cross-contaminated each other's specs (P1/P2/P4
+all reported phantom tournaments). Now every page load creates a fresh session unless the URL
+hash carries `#s=<id>`; we set the hash after creating, so reload rejoins the same session.
+Alternative rejected: cookie-pinned sessions (breaks multi-tab-as-multi-director demos and
+shareable links).
+
+## D14 — Tool-error results are model-facing only (2026-07-09, persona finding)
+Error ToolResults (validation failures, missing args) were echoed into the UI provenance chips,
+so directors saw internals like `'source_quote'` (a bare KeyError repr) and "No division 'u10'
+to remove." Errors now go only back to the model as tool_result feedback; only successful
+mutations render as chips. KeyError messages were also rephrased to name the tool and missing
+argument (more important now that schemas are non-strict — see D-strict note in tools.py).
+
+## D15 — Known product-model gap (queued): field_size ontology conflates field dimensions with
+game format. Vic (P2) said "U10 plays 8v8 on the small fields" but the enum maps small→"4v4/3v3".
+Fix direction: per-division format string decoupled from field size. Not blocking; queued for a
+follow-up branch with the M5 explanation work.

@@ -144,8 +144,20 @@ function handleEvent(ev: ServerEvent) {
 
 async function boot() {
   renderAll();
-  let sessions = await listSessions();
-  const session = sessions[0] ?? (await createSession("My tournament"));
+  // Every visitor gets their OWN conversation: joining an existing session is
+  // opt-in via the URL hash (#s=<id>), which we set after creating one so a
+  // reload rejoins the same session. Joining sessions[0] unconditionally let
+  // concurrent visitors land in each other's conversations.
+  const fromHash = new URLSearchParams(location.hash.slice(1)).get("s");
+  let session = null;
+  if (fromHash) {
+    const sessions = await listSessions();
+    session = sessions.find((s) => s.id === fromHash) ?? null;
+  }
+  if (!session) {
+    session = await createSession("My tournament");
+    history.replaceState(null, "", `#s=${session.id}`);
+  }
   state.sessionId = session.id;
 
   socket = new ChatSocket(

@@ -548,7 +548,17 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
 
     except ValidationError as exc:
         return ToolResult(content=f"That doesn't fit the spec: {exc.errors()[0]['msg']}", is_error=True)
-    except (ValueError, KeyError, LookupError) as exc:
+    except KeyError as exc:
+        # Tools are non-strict, so the model can omit a required argument; str(KeyError)
+        # is just the bare key repr, which is useless (and once leaked into the UI).
+        return ToolResult(
+            content=(
+                f"Tool '{name}' was called without its required argument {exc}. "
+                "Call it again with every declared field (pass null for unstated optional fields)."
+            ),
+            is_error=True,
+        )
+    except (ValueError, LookupError) as exc:
         return ToolResult(content=str(exc), is_error=True)
 
     return ToolResult(content=f"Unhandled tool '{name}'.", is_error=True)

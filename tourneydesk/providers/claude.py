@@ -99,7 +99,10 @@ class ClaudeIntake:
             for block in tool_use_blocks:
                 tool_calls.append({"name": block.name, "input": block.input})
                 result = dispatch(self.session, block.name, block.input)
-                echoes.append(result.content)
+                # Error results are model-facing correction feedback, not provenance
+                # the director should see — they read as alarming internals in the UI.
+                if not result.is_error:
+                    echoes.append(result.content)
                 if block.name == "mark_intake_complete" and not result.is_error:
                     complete = True
                 tool_results.append(
