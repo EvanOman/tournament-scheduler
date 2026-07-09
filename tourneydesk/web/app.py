@@ -142,18 +142,11 @@ def create_app(
                     await _handle_chat(ws, live, manager, solver, text)
                 except WebSocketDisconnect:
                     raise
-                except Exception:
+                except Exception as exc:
                     # A failed turn must not kill the connection loop — the director
                     # would see their message silently vanish with no way to recover.
                     logging.getLogger("tourneydesk").exception("chat turn failed")
-                    await ws.send_json(
-                        {
-                            "type": "error",
-                            "message": (
-                                "Something went wrong handling that message. Your draft is safe — please send it again."
-                            ),
-                        }
-                    )
+                    await ws.send_json({"type": "error", "message": _user_error_message(exc)})
         except WebSocketDisconnect:
             pass
         finally:
@@ -173,6 +166,28 @@ def create_app(
             )
 
     return app
+
+
+def _user_error_message(exc: Exception) -> str:
+    """Turn a failed-turn exception into an honest, actionable user message.
+
+    A retryable-sounding generic message on a permanent outage sends users into
+    a retry loop with no signal (persona P4 retried an out-of-credits backend
+    four times). Distinguish the known-permanent cases.
+    """
+    text = str(exc)
+    if "credit balance" in text.lower():
+        return (
+            "The scheduling assistant can't reach its AI service right now (the account "
+            "is out of credits). Retrying won't help until the operator tops it up — "
+            "your draft is safe and will be here when service resumes."
+        )
+    if "authentication" in text.lower() or "api key" in text.lower():
+        return (
+            "The scheduling assistant can't authenticate with its AI service. This needs "
+            "the operator's attention — your draft is safe."
+        )
+    return "Something went wrong handling that message. Your draft is safe — please send it again."
 
 
 def _build_solver(ws: WebSocket, live: LiveSession, debounce: float) -> SpeculativeSolver:
