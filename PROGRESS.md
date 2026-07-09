@@ -39,7 +39,25 @@ scheduling product on top of the existing CP-SAT solver).
 - **Verified so far**: main `just check` green at base; `ANTHROPIC_API_KEY` live (opus-4-8, HTTP 200);
   m1 worktree's `anthropic>=0.112.0` dep addition inspected and kept (published 2026-06-24, past
   the 7-day min-release-age).
-- **In flight** (3 parallel worktree subagents): M1 agent skeleton (sonnet, + core service layer),
-  M2 golden brief corpus first 15 (sonnet), M5 solver assumption instrumentation + conflict
-  extraction (opus).
-- **Next**: review + merge M1 when green; then build M3 web core; merge M2/M5 as they land.
+- **Landed on main** (all three worktree streams, Fable-reviewed before/at merge):
+  - **M5 solver instrumentation** (`cee5e4d`, merged `c2bc431`): `build_model(instrument=True)`
+    guards all 6 hard-constraint families behind per-entity assumption literals;
+    `tournament_scheduler/conflict.py` extracts deletion-filter minimal unsat cores with
+    plain-English descriptors. 13 golden conflict tests; all 3 golden infeasible specs produced
+    proven-minimal cores naming the true culprit (rest/field-capacity/coaching). Independent
+    `just check` in the worktree: exit 0, 54 passed.
+  - **M1 agent skeleton** (`99735ed` + fix `570cc49`, merges `62113a9`/`f4b571c`): `tourneydesk/`
+    package — SpecSession with provenance + labeled assumptions, 17 strict-schema mutation tools,
+    ClaudeIntake (opus-4-8, adaptive thinking, cached prompt, refusal handling) + FakeIntake,
+    `IntakeService` core layer (CLI/web parity by construction), `tourneydesk chat` CLI.
+    44 offline tests incl. fake-LLM e2e (chat → tools → spec → solve → validate). Review caught a
+    real red test on the headline e2e (assumption labeling vs `bracket_after_pools: None` script
+    input) — fixed to assert the exact labeled assumption instead.
+  - **M2 golden corpus** (`d822526`, merged `4930538`): 15 briefs b01–b15 (clean → adversarial
+    hallucination-bait canary), 13 feasible golden specs that solve+validate, 2 infeasible briefs
+    with quantified golden conflicts; `tests/test_corpus.py` gates it.
+- **Note**: a concurrent session merged the three branches into main at 13:04 while this loop was
+  mid-review; this loop then merged the outstanding e2e fix and re-gated main with a full
+  `just check`.
+- **Next**: M3 web core vertical slice (FastAPI + WebSocket chat + Rules panel + sample schedule,
+  port 18780) — Evan's stated critical path; then M2 eval runner, M5 NL explanation wiring.

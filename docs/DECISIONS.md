@@ -25,6 +25,16 @@ Append-only; newest at the bottom of each section. Subagents report decisions he
 - **What:** After M1 merges, build M3 (FastAPI + WebSocket chat + live Rules panel) before completing M2's 15-brief corpus. M2/M5 continue in parallel worktrees; M3 merges next.
 - **Why:** Evan's directive — the critical path is a running, browser-usable site for persona testing. A working vertical slice (chat → spec → sample schedule in UI) beats completing all milestones on paper.
 
+### D6 — Single authoritative gate on main after batch merge (2026-07-09)
+- **What:** With three disjoint-tree branches (solver / tourneydesk / evals) reviewed and each
+  reported green by its worker, merge all three and run ONE full `just check` on merged main as
+  the gate, instead of serially re-running the ~8-minute suite per worktree.
+- **Why:** Concurrent full suites thrashed each other (SIGTERM'd runs); the merged-main check is
+  the integration truth anyway. Review evidence: worker-reported green + zero failures in partial
+  independent runs + Fable file-level review, which caught and fixed one real red test
+  (`test_fake_e2e` assumption-labeling) before it could land unnoticed.
+- **Rejected:** Four sequential full-suite runs (~35 min of wall time for no added signal).
+
 ## LLM integration
 
 ### D5 — API key verified live; product model `claude-opus-4-8` (2026-07-09)
