@@ -101,3 +101,22 @@ scheduling product on top of the existing CP-SAT solver).
   b01/b03/b15 F1=1.000, hallucinated constraints 0 incl. adversarial bait; 270 tests green.
   `m5-explanation` — conflict explanation + repair-option engine (deterministic + LLM w/
   grounding guard), `just explain`; 227 tests green.
+
+### Persona rounds 4–5 + lane merges — 2026-07-09
+
+- **Round 4**: P1 ✓ SATISFIED (derived-values confirmation held under her exact trap; agent
+  honestly reported an accepted change didn't help). P5 ✓ SATISFIED (panel/digest numbers matched
+  digit-for-digit; exemplary honest change-verification — admitted an inert preference and
+  removed it). P4 blocked by a real blocker: an exception escaping dispatch mid-tool-loop left a
+  dangling tool_use, permanently 400-ing the session → D24 (dispatch never raises + history
+  integrity finally-guard), D25 (duplicate team names rejected; ids in spec summary).
+- **Round 5 (P4)**: aborted by TOTAL OUTAGE — root cause: **Anthropic API credit balance
+  exhausted** (billing, not code). Honest outage messaging added for credit/auth failure classes.
+- **Lanes merged to main**: m2-eval-runner (facts-scoped F1 scoring, results committed; canary
+  b01/b03/b15 F1=1.000, hallucinated=0) and m5-explanation (repair engine, `just explain`).
+  Resolution: main keeps the persona-validated non-strict tool suite; lane's empirical strict
+  budget recorded as D26 (sentinel prototype preserved on branch).
+- **Scoreboard: 5/6 personas SATISFIED** (P1 Patty, P2 Vic, P3 Carla, P5 Sam, P6 Mia).
+  P4 Hank: rounds 1–4 findings all fixed and unit-verified; final live browser regression
+  blocked on API credits. **Resume plan**: after top-up, re-run the round-5 Hank script
+  (persona prompt archived in session; scenario in this file's round-4 entry).
