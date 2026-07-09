@@ -443,6 +443,14 @@ def _schedule_digest(session: SpecSession) -> str:
         lines.append(f"  - {field_names.get(fid, fid)}: {len(games)} games, days {'/'.join(days)}, {first}–{last}")
 
     field_name = {f.id: f.name for f in spec.fields}
+    division_name = {d.id: d.name for d in spec.divisions}
+    # Placeholder team names repeat across divisions ("Team 9" in U12 AND U14),
+    # so every team is labeled with its division (persona P5 hit the ambiguity).
+    team_division = {t.id: division_name.get(t.division_id, t.division_id) for t in spec.teams}
+
+    def _label(tid: str) -> str:
+        return f"{team_division.get(tid, '?')} {team_names.get(tid, tid)}"
+
     lines.append("Per team (every game — day, time, opponent, field):")
     by_team_games: dict[str, list[Any]] = {}
     for g in schedule.games:
@@ -454,8 +462,8 @@ def _schedule_digest(session: SpecSession) -> str:
         for g in games:
             opp = g.away_team_id if g.home_team_id == tid else g.home_team_id
             when = g.start_time.strftime("%a %H:%M")
-            parts.append(f"{when} v {team_names.get(opp, opp)} ({field_name.get(g.field_id, g.field_id)})")
-        lines.append(f"  - {team_names.get(tid, tid)}: {'; '.join(parts)}")
+            parts.append(f"{when} v {_label(opp)} ({field_name.get(g.field_id, g.field_id)})")
+        lines.append(f"  - {_label(tid)}: {'; '.join(parts)}")
     return "\n".join(lines)
 
 
