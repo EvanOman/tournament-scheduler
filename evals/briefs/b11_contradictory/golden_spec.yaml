@@ -1,0 +1,114 @@
+name: Foothills October Cup
+description: 16-team tournament; director gave contradictory rest requirements, reconciled
+  to 45 minutes
+divisions:
+- id: u13
+  name: U13 Coed
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u13_team_01
+  name: Lakeside FC
+  division_id: u13
+  club: Lakeside FC
+  seed: 1
+- id: u13_team_02
+  name: Riverside SC
+  division_id: u13
+  club: Riverside SC
+  seed: 2
+- id: u13_team_03
+  name: Highland United
+  division_id: u13
+  club: Highland United
+  seed: 3
+- id: u13_team_04
+  name: Coastal FC
+  division_id: u13
+  club: Coastal FC
+  seed: 4
+- id: u13_team_05
+  name: Meridian SC
+  division_id: u13
+  club: Meridian SC
+  seed: 5
+- id: u13_team_06
+  name: Ironwood FC
+  division_id: u13
+  club: Ironwood FC
+  seed: 6
+- id: u13_team_07
+  name: Brookfield SC
+  division_id: u13
+  club: Brookfield SC
+  seed: 7
+- id: u13_team_08
+  name: Cascade FC
+  division_id: u13
+  club: Cascade FC
+  seed: 8
+- id: u13_team_09
+  name: Lakeside FC Black
+  division_id: u13
+  club: Lakeside FC
+  seed: 9
+- id: u13_team_10
+  name: Riverside SC Black
+  division_id: u13
+  club: Riverside SC
+  seed: 10
+- id: u13_team_11
+  name: Highland United Black
+  division_id: u13
+  club: Highland United
+  seed: 11
+- id: u13_team_12
+  name: Coastal FC Black
+  division_id: u13
+  club: Coastal FC
+  seed: 12
+- id: u13_team_13
+  name: Meridian SC Black
+  division_id: u13
+  club: Meridian SC
+  seed: 13
+- id: u13_team_14
+  name: Ironwood FC Black
+  division_id: u13
+  club: Ironwood FC
+  seed: 14
+- id: u13_team_15
+  name: Brookfield SC Black
+  division_id: u13
+  club: Brookfield SC
+  seed: 15
+- id: u13_team_16
+  name: Cascade FC Black
+  division_id: u13
+  club: Cascade FC
+  seed: 16
+fields:
+- id: f1
+  name: Field 1
+  size: full
+  availability:
+  - start: '2026-10-10T08:00:00'
+    end: '2026-10-10T19:00:00'
+- id: f2
+  name: Field 2
+  size: full
+  availability:
+  - start: '2026-10-10T08:00:00'
+    end: '2026-10-10T19:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 30
+num_workers: 8

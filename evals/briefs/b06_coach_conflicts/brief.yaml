@@ -1,0 +1,39 @@
+id: b06_coach_conflicts
+title: "24-team classic with three cross-division coaching overlaps"
+difficulty: medium
+categories: [clean]
+persona: |
+  Clear, detail-oriented director who proactively flags every coach who
+  works with more than one team, because she got burned by a double-booked
+  coach two seasons ago and now always mentions it unprompted.
+facts: |
+  Tournament name: Ironwood Coaches Classic. Saturday, September 12, 2026,
+  single day, fields open 8am-7pm.
+
+  Three divisions:
+  - U9 Boys: 8 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U11 Boys: 8 teams, large-size (9v9) fields. Games are 30 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 50 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U13 Boys: 8 teams, full-size (11v11) fields. Games are 35 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 60 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Four fields, all open 8am-7pm: Field 1 and Field 2 medium, Field 3 large,
+  Field 4 full-size.
+
+  Three coaches work across divisions and can't be scheduled to two games at
+  once:
+  - Coach Ramirez coaches both Lakeside FC (U9 Boys) and Meridian SC (U11
+    Boys).
+  - Coach Nguyen coaches both Brookfield SC (U11 Boys) and Prairie SC (U13
+    Boys).
+  - Coach O'Brien coaches both Lakeside FC Black (U9 Boys) and Northgate SC
+    Black (U13 Boys).
+
+  No team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

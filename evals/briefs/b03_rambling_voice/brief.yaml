@@ -1,0 +1,34 @@
+id: b03_rambling_voice
+title: "Chatty voice-transcript director, 16-team single day"
+difficulty: easy
+categories: [rambling]
+persona: |
+  Sounds like a voice-to-text transcript from a parent volunteer talking
+  while multitasking. Chatty, tangential, circles back to the point after
+  digressions about parking, the snack bar, and how last year's tournament
+  went. Every fact the agent needs IS in there somewhere, just buried in
+  filler. Uses "um," "so anyway," "oh also" a lot. Never contradicts itself
+  — the rambling is noise, not misinformation.
+facts: |
+  Tournament name: Brookfield Summer Send-Off. Saturday, August 15, 2026,
+  single day, fields open 8am to 7pm.
+
+  Two divisions:
+  - U9 Coed: 8 teams, medium-size (7v7) fields. Games are 24 minutes with a
+    4-minute halftime and a 10-minute buffer between games. Minimum rest is
+    40 minutes. Each team plays 3 pool games. Pools of 4 teams.
+  - U11 Coed: 8 teams, large-size (9v9) fields. Games are 28 minutes with a
+    4-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Two fields: Field 1 is medium-size (for U9), Field 2 is large-size (for
+  U11). Both open 8am-7pm on the 15th.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+  (The director does ramble about wanting "the shady field" for U9 kids but
+  immediately says "actually you know what, don't worry about that, whatever
+  works" — this is NOT a real field preference and must not appear in the
+  golden spec.)
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

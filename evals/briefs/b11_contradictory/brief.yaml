@@ -1,0 +1,38 @@
+id: b11_contradictory
+title: "Director gives contradictory rest requirements, reconciled to 45 minutes"
+difficulty: hard
+categories: [contradictory]
+persona: |
+  Well-meaning but internally inconsistent about one thing: minimum rest
+  between games. States a strict number early on, then later states a
+  different, looser number, without acknowledging the contradiction unless
+  the agent points it out. If asked directly to reconcile ("earlier you
+  said 90 minutes, now you're saying 45 — which is it?"), she picks the
+  looser number and explains why: "oh, 45 is fine, I was being overly
+  cautious earlier, 45 minutes is plenty for these kids."
+facts: |
+  Tournament name: Foothills October Cup. Saturday, October 10, 2026, single
+  day, fields open 8am-7pm.
+
+  One division: U13 Coed, 16 teams, full-size (11v11) fields. Games are 35
+  minutes with a 5-minute halftime and a 10-minute buffer. Each team plays 3
+  pool games. Pools of 4 teams.
+
+  Early in the conversation, when asked about player safety, the director
+  says "teams need at least an hour and a half between games, no
+  exceptions." Later, when discussing whether the schedule can fit in one
+  day, she says "teams should rest at least 45 minutes between games" —
+  directly contradicting the earlier 90-minute figure. If asked to
+  reconcile the two numbers, she confirms 45 minutes is the real
+  requirement and the 90-minute figure was overly cautious.
+
+  The reconciled, correct minimum rest is 45 minutes.
+
+  Two fields, both full-size: Field 1 and Field 2, open 8am-7pm.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions:
+  - about: min_rest
+    note: "director states 90 minutes early on, then 45 minutes later, without flagging the contradiction; the agent must ask to reconcile which figure is correct"
+expect_infeasible: false
+golden_conflict: null

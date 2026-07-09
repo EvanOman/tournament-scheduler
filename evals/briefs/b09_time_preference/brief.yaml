@@ -1,0 +1,31 @@
+id: b09_time_preference
+title: "16-team tournament, youngest division prefers mornings"
+difficulty: medium
+categories: [clean]
+persona: |
+  Clear director who explains the format then adds one preference she cares
+  about for her youngest kids, framed explicitly as a preference rather
+  than a hard requirement.
+facts: |
+  Tournament name: Prairie Youth Classic. Saturday, September 12, 2026,
+  single day, fields open 8am-6pm.
+
+  Two divisions:
+  - U9 Boys: 8 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U13 Boys: 8 teams, full-size (11v11) fields. Games are 35 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 60 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Two fields: Field 1 (medium) and Field 2 (full-size), both open 8am-6pm.
+
+  The director would strongly prefer U9 Boys games be scheduled in the
+  morning, between 8am and noon, since the kids are young and have early
+  bedtimes — but she's clear this is a preference to optimize for, not a
+  hard requirement that would block the schedule.
+
+  No coaching overlaps, no team avoidances, no field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null
