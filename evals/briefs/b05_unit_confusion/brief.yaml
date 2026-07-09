@@ -1,0 +1,31 @@
+id: b05_unit_confusion
+title: "Game length misspoken as 'an hour', corrected on follow-up"
+difficulty: medium
+categories: [unit_confusion]
+persona: |
+  Casual, talks in round numbers first and only gets precise when pressed.
+  When asked to confirm game length, self-corrects to the real breakdown.
+  Not being evasive — just imprecise until the agent asks a clarifying
+  question about game duration.
+facts: |
+  Tournament name: Cascade Cup. Saturday, September 26, 2026, single day,
+  fields open 8am-8pm.
+
+  One division: U12 Coed, 16 teams, large-size (9v9) fields. When first
+  asked how long games run, the director says "games are an hour." If the
+  agent asks a clarifying question to pin down the number (e.g. "is that 60
+  minutes of play, or does that include stoppage/warmup?"), she corrects
+  herself: "oh — actually more like 50 minutes of play, no halftime, and we
+  leave 10 minutes between games for warmup and swapping teams." The real
+  numbers are: 50-minute games, 0-minute halftime, 10-minute buffer between
+  games on the same field. Minimum rest between games for any team is 50
+  minutes. Each team plays 3 pool games. Pools of 4 teams.
+
+  Two fields, both large-size: Field 1 and Field 2, open 8am-8pm.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions:
+  - about: game_length
+    note: "director first says 'an hour', then corrects to 50 minutes of play plus a 10-minute buffer when asked to pin the number down"
+expect_infeasible: false
+golden_conflict: null

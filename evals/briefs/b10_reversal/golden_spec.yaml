@@ -1,0 +1,84 @@
+name: Vantage Fall Rumble
+description: 10-team single division; director revised games-per-team from 3 to 4
+  mid-call
+divisions:
+- id: u11
+  name: U11 Coed
+  field_size: large
+  game_duration_minutes: 28
+  halftime_minutes: 4
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 4
+  pool_size: 5
+  bracket_after_pools: true
+teams:
+- id: u11_team_01
+  name: Lakeside FC
+  division_id: u11
+  club: Lakeside FC
+  seed: 1
+- id: u11_team_02
+  name: Riverside SC
+  division_id: u11
+  club: Riverside SC
+  seed: 2
+- id: u11_team_03
+  name: Highland United
+  division_id: u11
+  club: Highland United
+  seed: 3
+- id: u11_team_04
+  name: Coastal FC
+  division_id: u11
+  club: Coastal FC
+  seed: 4
+- id: u11_team_05
+  name: Meridian SC
+  division_id: u11
+  club: Meridian SC
+  seed: 5
+- id: u11_team_06
+  name: Lakeside FC Black
+  division_id: u11
+  club: Lakeside FC
+  seed: 6
+- id: u11_team_07
+  name: Riverside SC Black
+  division_id: u11
+  club: Riverside SC
+  seed: 7
+- id: u11_team_08
+  name: Highland United Black
+  division_id: u11
+  club: Highland United
+  seed: 8
+- id: u11_team_09
+  name: Coastal FC Black
+  division_id: u11
+  club: Coastal FC
+  seed: 9
+- id: u11_team_10
+  name: Meridian SC Black
+  division_id: u11
+  club: Meridian SC
+  seed: 10
+fields:
+- id: f1
+  name: Field 1
+  size: large
+  availability:
+  - start: '2026-09-19T08:00:00'
+    end: '2026-09-19T20:00:00'
+- id: f2
+  name: Field 2
+  size: large
+  availability:
+  - start: '2026-09-19T08:00:00'
+    end: '2026-09-19T20:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 30
+num_workers: 8

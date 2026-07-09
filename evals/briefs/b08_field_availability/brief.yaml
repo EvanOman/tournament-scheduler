@@ -1,0 +1,28 @@
+id: b08_field_availability
+title: "16-team tournament with a field closed for a lunch match"
+difficulty: medium
+categories: [clean]
+persona: |
+  Clear, practical facilities-minded director who explains the field
+  scheduling wrinkle in plain terms without being asked.
+facts: |
+  Tournament name: Coastal Youth Invitational. Saturday, September 12, 2026,
+  single day.
+
+  Two divisions:
+  - U10 Boys: 8 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U12 Girls: 8 teams, large-size (9v9) fields. Games are 30 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 50 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Three fields: Field 1 (medium) is open 8am-6pm all day. Field 2 (medium)
+  is open 8am-6pm, EXCEPT it's closed from noon to 1pm because a rec league
+  has a lunchtime match booked on it. Field 3 (large) is open 8am-6pm all
+  day.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

@@ -1,0 +1,355 @@
+name: Riverside Autumn Cup
+description: 48-team weekend youth soccer tournament across four field sizes
+divisions:
+- id: u8
+  name: U8 Coed
+  field_size: small
+  game_duration_minutes: 20
+  halftime_minutes: 0
+  buffer_minutes: 10
+  min_rest_minutes: 30
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u10
+  name: U10 Boys
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12
+  name: U12 Girls
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u14
+  name: U14 Boys
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u8_team_01
+  name: Lakeside FC
+  division_id: u8
+  club: Lakeside FC
+  seed: 1
+- id: u8_team_02
+  name: Riverside SC
+  division_id: u8
+  club: Riverside SC
+  seed: 2
+- id: u8_team_03
+  name: Highland United
+  division_id: u8
+  club: Highland United
+  seed: 3
+- id: u8_team_04
+  name: Coastal FC
+  division_id: u8
+  club: Coastal FC
+  seed: 4
+- id: u8_team_05
+  name: Meridian SC
+  division_id: u8
+  club: Meridian SC
+  seed: 5
+- id: u8_team_06
+  name: Ironwood FC
+  division_id: u8
+  club: Ironwood FC
+  seed: 6
+- id: u8_team_07
+  name: Lakeside FC Black
+  division_id: u8
+  club: Lakeside FC
+  seed: 7
+- id: u8_team_08
+  name: Riverside SC Black
+  division_id: u8
+  club: Riverside SC
+  seed: 8
+- id: u8_team_09
+  name: Highland United Black
+  division_id: u8
+  club: Highland United
+  seed: 9
+- id: u8_team_10
+  name: Coastal FC Black
+  division_id: u8
+  club: Coastal FC
+  seed: 10
+- id: u8_team_11
+  name: Meridian SC Black
+  division_id: u8
+  club: Meridian SC
+  seed: 11
+- id: u8_team_12
+  name: Ironwood FC Black
+  division_id: u8
+  club: Ironwood FC
+  seed: 12
+- id: u10_team_01
+  name: Coastal FC
+  division_id: u10
+  club: Coastal FC
+  seed: 1
+- id: u10_team_02
+  name: Meridian SC
+  division_id: u10
+  club: Meridian SC
+  seed: 2
+- id: u10_team_03
+  name: Ironwood FC
+  division_id: u10
+  club: Ironwood FC
+  seed: 3
+- id: u10_team_04
+  name: Brookfield SC
+  division_id: u10
+  club: Brookfield SC
+  seed: 4
+- id: u10_team_05
+  name: Cascade FC
+  division_id: u10
+  club: Cascade FC
+  seed: 5
+- id: u10_team_06
+  name: Northgate SC
+  division_id: u10
+  club: Northgate SC
+  seed: 6
+- id: u10_team_07
+  name: Coastal FC Black
+  division_id: u10
+  club: Coastal FC
+  seed: 7
+- id: u10_team_08
+  name: Meridian SC Black
+  division_id: u10
+  club: Meridian SC
+  seed: 8
+- id: u10_team_09
+  name: Ironwood FC Black
+  division_id: u10
+  club: Ironwood FC
+  seed: 9
+- id: u10_team_10
+  name: Brookfield SC Black
+  division_id: u10
+  club: Brookfield SC
+  seed: 10
+- id: u10_team_11
+  name: Cascade FC Black
+  division_id: u10
+  club: Cascade FC
+  seed: 11
+- id: u10_team_12
+  name: Northgate SC Black
+  division_id: u10
+  club: Northgate SC
+  seed: 12
+- id: u12_team_01
+  name: Brookfield SC
+  division_id: u12
+  club: Brookfield SC
+  seed: 1
+- id: u12_team_02
+  name: Cascade FC
+  division_id: u12
+  club: Cascade FC
+  seed: 2
+- id: u12_team_03
+  name: Northgate SC
+  division_id: u12
+  club: Northgate SC
+  seed: 3
+- id: u12_team_04
+  name: Harbor FC
+  division_id: u12
+  club: Harbor FC
+  seed: 4
+- id: u12_team_05
+  name: Prairie SC
+  division_id: u12
+  club: Prairie SC
+  seed: 5
+- id: u12_team_06
+  name: Redwood FC
+  division_id: u12
+  club: Redwood FC
+  seed: 6
+- id: u12_team_07
+  name: Brookfield SC Black
+  division_id: u12
+  club: Brookfield SC
+  seed: 7
+- id: u12_team_08
+  name: Cascade FC Black
+  division_id: u12
+  club: Cascade FC
+  seed: 8
+- id: u12_team_09
+  name: Northgate SC Black
+  division_id: u12
+  club: Northgate SC
+  seed: 9
+- id: u12_team_10
+  name: Harbor FC Black
+  division_id: u12
+  club: Harbor FC
+  seed: 10
+- id: u12_team_11
+  name: Prairie SC Black
+  division_id: u12
+  club: Prairie SC
+  seed: 11
+- id: u12_team_12
+  name: Redwood FC Black
+  division_id: u12
+  club: Redwood FC
+  seed: 12
+- id: u14_team_01
+  name: Harbor FC
+  division_id: u14
+  club: Harbor FC
+  seed: 1
+- id: u14_team_02
+  name: Prairie SC
+  division_id: u14
+  club: Prairie SC
+  seed: 2
+- id: u14_team_03
+  name: Redwood FC
+  division_id: u14
+  club: Redwood FC
+  seed: 3
+- id: u14_team_04
+  name: Vantage SC
+  division_id: u14
+  club: Vantage SC
+  seed: 4
+- id: u14_team_05
+  name: Foothills FC
+  division_id: u14
+  club: Foothills FC
+  seed: 5
+- id: u14_team_06
+  name: Union SC
+  division_id: u14
+  club: Union SC
+  seed: 6
+- id: u14_team_07
+  name: Harbor FC Black
+  division_id: u14
+  club: Harbor FC
+  seed: 7
+- id: u14_team_08
+  name: Prairie SC Black
+  division_id: u14
+  club: Prairie SC
+  seed: 8
+- id: u14_team_09
+  name: Redwood FC Black
+  division_id: u14
+  club: Redwood FC
+  seed: 9
+- id: u14_team_10
+  name: Vantage SC Black
+  division_id: u14
+  club: Vantage SC
+  seed: 10
+- id: u14_team_11
+  name: Foothills FC Black
+  division_id: u14
+  club: Foothills FC
+  seed: 11
+- id: u14_team_12
+  name: Union SC Black
+  division_id: u14
+  club: Union SC
+  seed: 12
+fields:
+- id: f1
+  name: Field 1
+  size: small
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f2
+  name: Field 2
+  size: small
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f3
+  name: Field 3
+  size: medium
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f4
+  name: Field 4
+  size: medium
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f5
+  name: Field 5
+  size: large
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f6
+  name: Field 6
+  size: large
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f7
+  name: Field 7
+  size: full
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+- id: f8
+  name: Field 8
+  size: full
+  availability:
+  - start: '2026-10-03T08:00:00'
+    end: '2026-10-03T18:00:00'
+  - start: '2026-10-04T08:00:00'
+    end: '2026-10-04T16:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 60
+num_workers: 8

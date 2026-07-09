@@ -1,0 +1,30 @@
+id: b10_reversal
+title: "Director changes games-per-team from 3 to 4 mid-conversation"
+difficulty: hard
+categories: [reversal]
+persona: |
+  Decisive but changes her mind once, out loud, mid-conversation. States an
+  initial number confidently, then a few exchanges later reconsiders and
+  explicitly reverses it ("actually, let's bump that up to 4 — scratch what
+  I said before"). The final, reversed number is the one that counts; never
+  reverts back again after the reversal.
+facts: |
+  Tournament name: Vantage Fall Rumble. Saturday, September 19, 2026, single
+  day, fields open 8am-8pm.
+
+  One division: U11 Coed, 10 teams, large-size (9v9) fields. Games are 28
+  minutes with a 4-minute halftime and a 10-minute buffer. Minimum rest is
+  45 minutes. Pool size is 5 teams (two pools of 5).
+
+  Early in the conversation the director says "each team should play 3
+  games." Later, after thinking about it more, she says "actually, let's
+  bump that up to 4 games per team — scratch what I said before, 4 is
+  better since we've got the field time." The final, correct number of
+  pool games per team is 4 (a full round robin within a 5-team pool).
+
+  Two fields, both large-size: Field 1 and Field 2, open 8am-8pm.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

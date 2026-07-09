@@ -1,0 +1,108 @@
+name: Harbor Overbooked Cup
+description: 16-team single division; one field for 2 hours cannot fit the required
+  games -- INFEASIBLE
+divisions:
+- id: u12
+  name: U12 Coed
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 30
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u12_team_01
+  name: Lakeside FC
+  division_id: u12
+  club: Lakeside FC
+  seed: 1
+- id: u12_team_02
+  name: Riverside SC
+  division_id: u12
+  club: Riverside SC
+  seed: 2
+- id: u12_team_03
+  name: Highland United
+  division_id: u12
+  club: Highland United
+  seed: 3
+- id: u12_team_04
+  name: Coastal FC
+  division_id: u12
+  club: Coastal FC
+  seed: 4
+- id: u12_team_05
+  name: Meridian SC
+  division_id: u12
+  club: Meridian SC
+  seed: 5
+- id: u12_team_06
+  name: Ironwood FC
+  division_id: u12
+  club: Ironwood FC
+  seed: 6
+- id: u12_team_07
+  name: Brookfield SC
+  division_id: u12
+  club: Brookfield SC
+  seed: 7
+- id: u12_team_08
+  name: Cascade FC
+  division_id: u12
+  club: Cascade FC
+  seed: 8
+- id: u12_team_09
+  name: Lakeside FC Black
+  division_id: u12
+  club: Lakeside FC
+  seed: 9
+- id: u12_team_10
+  name: Riverside SC Black
+  division_id: u12
+  club: Riverside SC
+  seed: 10
+- id: u12_team_11
+  name: Highland United Black
+  division_id: u12
+  club: Highland United
+  seed: 11
+- id: u12_team_12
+  name: Coastal FC Black
+  division_id: u12
+  club: Coastal FC
+  seed: 12
+- id: u12_team_13
+  name: Meridian SC Black
+  division_id: u12
+  club: Meridian SC
+  seed: 13
+- id: u12_team_14
+  name: Ironwood FC Black
+  division_id: u12
+  club: Ironwood FC
+  seed: 14
+- id: u12_team_15
+  name: Brookfield SC Black
+  division_id: u12
+  club: Brookfield SC
+  seed: 15
+- id: u12_team_16
+  name: Cascade FC Black
+  division_id: u12
+  club: Cascade FC
+  seed: 16
+fields:
+- id: f1
+  name: Field 1
+  size: large
+  availability:
+  - start: '2026-09-12T08:00:00'
+    end: '2026-09-12T10:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 15
+num_workers: 8

@@ -1,0 +1,43 @@
+id: b13_infeasible_rest
+title: "180-minute rest requirement cannot fit in a 6-hour window"
+difficulty: hard
+categories: [infeasible]
+persona: |
+  Very safety-conscious director, insists on a long minimum rest between
+  games and won't budge on it when asked to confirm. Also firm about the
+  field window because the facility closes at 2pm for another booking.
+  States both facts confidently and doesn't notice they're incompatible —
+  it's the agent's job to catch that.
+facts: |
+  Tournament name: Redwood Single-Day Squeeze. Saturday, September 12, 2026,
+  single day.
+
+  One division: U12 Coed, 8 teams, large-size (9v9) fields. Games are 30
+  minutes with a 5-minute halftime and a 10-minute buffer between games.
+  Each team plays 3 pool games. Pools of 4 teams.
+
+  "Player safety is non-negotiable — I want at least 3 hours (180 minutes)
+  of rest between games for every team. I know that's a lot, but that's the
+  rule at our club." When asked whether that's firm, she confirms yes,
+  no exceptions.
+
+  Two fields, both large-size: Field 1 and Field 2, open 8am to 2pm only —
+  "the facility has another event booked starting at 2, we have to be off
+  the fields by then, that's also firm."
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: true
+golden_conflict:
+  summary: >
+    A 180-minute minimum rest between games for U12 Coed cannot fit 3 pool
+    games into the 8am-2pm field window. A single team alone needs roughly
+    3 games x 45 minutes (30min game + 5min halftime + 10min buffer) plus 2
+    rest gaps of 180 minutes each between them — about 8 hours and 15
+    minutes from first kickoff to final whistle — which already exceeds the
+    6-hour window before any other team's games are considered.
+  involves:
+    - "division:u12 min_rest_minutes=180"
+    - "division:u12 games_per_team=3"
+    - "field:f1 availability 08:00-14:00"
+    - "field:f2 availability 08:00-14:00"

@@ -1,0 +1,27 @@
+id: b12_missing_info_teams
+title: "12 teams in U10, count known before team names"
+difficulty: medium
+categories: [missing_info]
+persona: |
+  Clear and organized, but registration isn't finalized yet — she knows
+  exactly how many teams are coming but not their names. Says so plainly
+  rather than guessing or making up names.
+facts: |
+  Tournament name: Union Fields U10 Jamboree. Saturday, September 12, 2026,
+  single day, fields open 8am-6pm.
+
+  One division: U10 Coed, medium-size (7v7) fields. Games are 25 minutes
+  with a 5-minute halftime and a 10-minute buffer. Minimum rest is 45
+  minutes. Each team plays 3 pool games. Pools of 4 teams.
+
+  "We've got 12 teams registered for U10, but registration doesn't close
+  for another two weeks so I don't have the actual team names yet — just
+  the count." The agent should record the team count (12) and proceed with
+  placeholder team entries, to be renamed once registration closes.
+
+  Two fields, both medium-size: Field 1 and Field 2, open 8am-6pm.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

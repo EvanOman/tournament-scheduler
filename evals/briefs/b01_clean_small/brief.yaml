@@ -1,0 +1,32 @@
+id: b01_clean_small
+title: "Clean 24-team fall kickoff"
+difficulty: easy
+categories: [clean]
+persona: |
+  Terse, businesslike club director. Answers in short, direct sentences.
+  Volunteers every fact the agent needs up front, in one pass, without being
+  asked twice. No small talk, no tangents, no hedging.
+facts: |
+  Tournament name: Lakeside Fall Kickoff. It runs Saturday, September 19, 2026,
+  single day.
+
+  Three divisions:
+  - U9 Boys: 8 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer between games on the same field.
+    Minimum rest between games for any team is 45 minutes. Each team plays 3
+    pool games. Pools of 4 teams.
+  - U11 Girls: 8 teams, large-size (9v9) fields. Games are 30 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 50 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U13 Boys: 8 teams, full-size (11v11) fields. Games are 35 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 60 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Four fields, all open 8am to 6pm on the 19th: Field 1 and Field 2 are
+  medium-size, Field 3 is large-size, Field 4 is full-size.
+
+  No coaching overlaps, no teams that need to avoid each other, and no
+  time-of-day or field preferences for any division.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

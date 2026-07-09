@@ -1,0 +1,74 @@
+name: Redwood Single-Day Squeeze
+description: 8-team single division; 180min min-rest cannot fit 3 games in a 6-hour
+  window -- INFEASIBLE
+divisions:
+- id: u12
+  name: U12 Coed
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 180
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u12_team_01
+  name: Lakeside FC
+  division_id: u12
+  club: Lakeside FC
+  seed: 1
+- id: u12_team_02
+  name: Riverside SC
+  division_id: u12
+  club: Riverside SC
+  seed: 2
+- id: u12_team_03
+  name: Highland United
+  division_id: u12
+  club: Highland United
+  seed: 3
+- id: u12_team_04
+  name: Coastal FC
+  division_id: u12
+  club: Coastal FC
+  seed: 4
+- id: u12_team_05
+  name: Lakeside FC Black
+  division_id: u12
+  club: Lakeside FC
+  seed: 5
+- id: u12_team_06
+  name: Riverside SC Black
+  division_id: u12
+  club: Riverside SC
+  seed: 6
+- id: u12_team_07
+  name: Highland United Black
+  division_id: u12
+  club: Highland United
+  seed: 7
+- id: u12_team_08
+  name: Coastal FC Black
+  division_id: u12
+  club: Coastal FC
+  seed: 8
+fields:
+- id: f1
+  name: Field 1
+  size: large
+  availability:
+  - start: '2026-09-12T08:00:00'
+    end: '2026-09-12T14:00:00'
+- id: f2
+  name: Field 2
+  size: large
+  availability:
+  - start: '2026-09-12T08:00:00'
+    end: '2026-09-12T14:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 15
+num_workers: 8

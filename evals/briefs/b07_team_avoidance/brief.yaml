@@ -1,0 +1,27 @@
+id: b07_team_avoidance
+title: "16-team single division with one sibling-family team avoidance"
+difficulty: medium
+categories: [clean]
+persona: |
+  Clear, straightforward director who mentions the one scheduling wrinkle
+  she cares about (a family-overlap request) right after describing the
+  basic format.
+facts: |
+  Tournament name: Northgate Labor Day Cup. Saturday, September 5, 2026,
+  single day, fields open 8am-6pm.
+
+  One division: U12 Boys, 16 teams, large-size (9v9) fields. Games are 30
+  minutes with a 5-minute halftime and a 10-minute buffer. Minimum rest is
+  50 minutes. Each team plays 3 pool games. Pools of 4 teams.
+
+  Two fields, both large-size: Field 1 and Field 2, open 8am-6pm.
+
+  Lakeside FC and Lakeside FC Black (their two U12 Boys squads) should not
+  be scheduled to play at the same time — a lot of the same extended
+  families have kids on both squads, and parents asked to avoid overlapping
+  kickoffs so they can watch siblings on both teams play.
+
+  No coaching overlaps, no time or field preferences.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

@@ -1,0 +1,36 @@
+id: b04_missing_dates
+title: "24-team classic, director never volunteers the date"
+difficulty: medium
+categories: [missing_info]
+persona: |
+  Clear and cooperative about everything except the calendar. Describes
+  divisions, fields, and format fully and correctly without prompting, but
+  never states which weekend the tournament happens on unless directly
+  asked "what date" or "what weekend." If asked, answers immediately and
+  precisely — she isn't hiding it, it just doesn't occur to her to lead with
+  it because "obviously everyone already has it on their calendar."
+facts: |
+  Tournament name: Highland Columbus Day Classic. The confirmed date is
+  Saturday, October 17, 2026, single day, fields open 8am-6pm. (The director
+  only states this if asked directly about the date or weekend.)
+
+  Three divisions:
+  - U10 Boys: 8 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U12 Girls: 8 teams, large-size (9v9) fields. Games are 30 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 50 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U14 Boys: 8 teams, full-size (11v11) fields. Games are 35 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 60 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Four fields, all open 8am-6pm: Field 1 and Field 2 medium, Field 3 large,
+  Field 4 full-size.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions:
+  - about: dates
+    note: "director never volunteers the tournament weekend; the agent must ask directly to learn it's October 17, 2026"
+expect_infeasible: false
+golden_conflict: null

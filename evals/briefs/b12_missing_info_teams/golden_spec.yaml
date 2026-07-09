@@ -1,0 +1,93 @@
+name: Union Fields U10 Jamboree
+description: 12-team single division; team names not yet known, only the count
+divisions:
+- id: u10
+  name: U10 Coed
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u10_team_01
+  name: U10 Team 1
+  division_id: u10
+  club: null
+  seed: 1
+- id: u10_team_02
+  name: U10 Team 2
+  division_id: u10
+  club: null
+  seed: 2
+- id: u10_team_03
+  name: U10 Team 3
+  division_id: u10
+  club: null
+  seed: 3
+- id: u10_team_04
+  name: U10 Team 4
+  division_id: u10
+  club: null
+  seed: 4
+- id: u10_team_05
+  name: U10 Team 5
+  division_id: u10
+  club: null
+  seed: 5
+- id: u10_team_06
+  name: U10 Team 6
+  division_id: u10
+  club: null
+  seed: 6
+- id: u10_team_07
+  name: U10 Team 7
+  division_id: u10
+  club: null
+  seed: 7
+- id: u10_team_08
+  name: U10 Team 8
+  division_id: u10
+  club: null
+  seed: 8
+- id: u10_team_09
+  name: U10 Team 9
+  division_id: u10
+  club: null
+  seed: 9
+- id: u10_team_10
+  name: U10 Team 10
+  division_id: u10
+  club: null
+  seed: 10
+- id: u10_team_11
+  name: U10 Team 11
+  division_id: u10
+  club: null
+  seed: 11
+- id: u10_team_12
+  name: U10 Team 12
+  division_id: u10
+  club: null
+  seed: 12
+fields:
+- id: f1
+  name: Field 1
+  size: medium
+  availability:
+  - start: '2026-09-12T08:00:00'
+    end: '2026-09-12T18:00:00'
+- id: f2
+  name: Field 2
+  size: medium
+  availability:
+  - start: '2026-09-12T08:00:00'
+    end: '2026-09-12T18:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 30
+num_workers: 8

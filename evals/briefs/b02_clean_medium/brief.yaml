@@ -1,0 +1,37 @@
+id: b02_clean_medium
+title: "48-team weekend cup across four field sizes"
+difficulty: medium
+categories: [clean]
+persona: |
+  Organized, methodical club director running her third tournament. Walks
+  through the whole setup division-by-division without needing prompts,
+  and proactively mentions field counts and sizes because she knows that
+  matters for scheduling.
+facts: |
+  Tournament name: Riverside Autumn Cup. It runs the weekend of Saturday,
+  October 3 and Sunday, October 4, 2026.
+
+  Four divisions:
+  - U8 Coed: 12 teams, small-size (4v4) fields. Games are 20 minutes, no
+    halftime, with a 10-minute buffer between games. Minimum rest is 30
+    minutes. Each team plays 3 pool games. Pools of 4 teams.
+  - U10 Boys: 12 teams, medium-size (7v7) fields. Games are 25 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 45 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U12 Girls: 12 teams, large-size (9v9) fields. Games are 30 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 50 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+  - U14 Boys: 12 teams, full-size (11v11) fields. Games are 35 minutes with a
+    5-minute halftime and a 10-minute buffer. Minimum rest is 60 minutes.
+    Each team plays 3 pool games. Pools of 4 teams.
+
+  Eight fields total, two of each size: Field 1 and Field 2 are small, Field 3
+  and Field 4 are medium, Field 5 and Field 6 are large, Field 7 and Field 8
+  are full-size. All fields are open 8am-6pm on Saturday and 8am-4pm on
+  Sunday (we need to be off the fields earlier Sunday for another group).
+
+  No coaching overlaps, no team avoidances, and no time-of-day or field
+  preferences for any division.
+golden_questions: []
+expect_infeasible: false
+golden_conflict: null

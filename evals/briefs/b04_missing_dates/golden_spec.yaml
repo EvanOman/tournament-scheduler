@@ -1,0 +1,185 @@
+name: Highland Columbus Day Classic
+description: 24-team single-day tournament, date confirmed only after asking
+divisions:
+- id: u10b
+  name: U10 Boys
+  field_size: medium
+  game_duration_minutes: 25
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 45
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u12g
+  name: U12 Girls
+  field_size: large
+  game_duration_minutes: 30
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 50
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+- id: u14b
+  name: U14 Boys
+  field_size: full
+  game_duration_minutes: 35
+  halftime_minutes: 5
+  buffer_minutes: 10
+  min_rest_minutes: 60
+  games_per_team: 3
+  pool_size: 4
+  bracket_after_pools: true
+teams:
+- id: u10b_team_01
+  name: Lakeside FC
+  division_id: u10b
+  club: Lakeside FC
+  seed: 1
+- id: u10b_team_02
+  name: Riverside SC
+  division_id: u10b
+  club: Riverside SC
+  seed: 2
+- id: u10b_team_03
+  name: Highland United
+  division_id: u10b
+  club: Highland United
+  seed: 3
+- id: u10b_team_04
+  name: Coastal FC
+  division_id: u10b
+  club: Coastal FC
+  seed: 4
+- id: u10b_team_05
+  name: Lakeside FC Black
+  division_id: u10b
+  club: Lakeside FC
+  seed: 5
+- id: u10b_team_06
+  name: Riverside SC Black
+  division_id: u10b
+  club: Riverside SC
+  seed: 6
+- id: u10b_team_07
+  name: Highland United Black
+  division_id: u10b
+  club: Highland United
+  seed: 7
+- id: u10b_team_08
+  name: Coastal FC Black
+  division_id: u10b
+  club: Coastal FC
+  seed: 8
+- id: u12g_team_01
+  name: Meridian SC
+  division_id: u12g
+  club: Meridian SC
+  seed: 1
+- id: u12g_team_02
+  name: Ironwood FC
+  division_id: u12g
+  club: Ironwood FC
+  seed: 2
+- id: u12g_team_03
+  name: Brookfield SC
+  division_id: u12g
+  club: Brookfield SC
+  seed: 3
+- id: u12g_team_04
+  name: Cascade FC
+  division_id: u12g
+  club: Cascade FC
+  seed: 4
+- id: u12g_team_05
+  name: Meridian SC Black
+  division_id: u12g
+  club: Meridian SC
+  seed: 5
+- id: u12g_team_06
+  name: Ironwood FC Black
+  division_id: u12g
+  club: Ironwood FC
+  seed: 6
+- id: u12g_team_07
+  name: Brookfield SC Black
+  division_id: u12g
+  club: Brookfield SC
+  seed: 7
+- id: u12g_team_08
+  name: Cascade FC Black
+  division_id: u12g
+  club: Cascade FC
+  seed: 8
+- id: u14b_team_01
+  name: Northgate SC
+  division_id: u14b
+  club: Northgate SC
+  seed: 1
+- id: u14b_team_02
+  name: Harbor FC
+  division_id: u14b
+  club: Harbor FC
+  seed: 2
+- id: u14b_team_03
+  name: Prairie SC
+  division_id: u14b
+  club: Prairie SC
+  seed: 3
+- id: u14b_team_04
+  name: Redwood FC
+  division_id: u14b
+  club: Redwood FC
+  seed: 4
+- id: u14b_team_05
+  name: Northgate SC Black
+  division_id: u14b
+  club: Northgate SC
+  seed: 5
+- id: u14b_team_06
+  name: Harbor FC Black
+  division_id: u14b
+  club: Harbor FC
+  seed: 6
+- id: u14b_team_07
+  name: Prairie SC Black
+  division_id: u14b
+  club: Prairie SC
+  seed: 7
+- id: u14b_team_08
+  name: Redwood FC Black
+  division_id: u14b
+  club: Redwood FC
+  seed: 8
+fields:
+- id: f1
+  name: Field 1
+  size: medium
+  availability:
+  - start: '2026-10-17T08:00:00'
+    end: '2026-10-17T18:00:00'
+- id: f2
+  name: Field 2
+  size: medium
+  availability:
+  - start: '2026-10-17T08:00:00'
+    end: '2026-10-17T18:00:00'
+- id: f3
+  name: Field 3
+  size: large
+  availability:
+  - start: '2026-10-17T08:00:00'
+    end: '2026-10-17T18:00:00'
+- id: f4
+  name: Field 4
+  size: full
+  availability:
+  - start: '2026-10-17T08:00:00'
+    end: '2026-10-17T18:00:00'
+coaching_conflicts: []
+team_avoidances: []
+time_preferences: []
+field_preferences: []
+max_solve_seconds: 30
+num_workers: 8

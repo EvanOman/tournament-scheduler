@@ -1,0 +1,38 @@
+id: b14_infeasible_fields
+title: "One field for 2 hours can't fit 24 required games"
+difficulty: hard
+categories: [infeasible]
+persona: |
+  Overbooked and a little frazzled director who lost her second field to
+  another event at the last minute but hasn't adjusted her expectations
+  for team count or game count. States the field situation and the team
+  count clearly and doesn't connect the dots that they don't fit together.
+facts: |
+  Tournament name: Harbor Overbooked Cup. Saturday, September 12, 2026,
+  single day.
+
+  One division: U12 Coed, 16 teams, large-size (9v9) fields. Games are 30
+  minutes with a 5-minute halftime and a 10-minute buffer between games.
+  Minimum rest is 30 minutes. Each team plays 3 pool games. Pools of 4
+  teams (4 pools of 4).
+
+  "We only have Field 1 this time — we lost our second field to a rental
+  last week. It's a large field, available 8am to 10am, that's the only
+  window we could get before the club that rented it needs it." She
+  confirms 16 teams and the 8-10am window are both firm when asked.
+
+  No coaching overlaps, no team avoidances, no time or field preferences.
+golden_questions: []
+expect_infeasible: true
+golden_conflict:
+  summary: >
+    16 teams in 4-team pools require 4 pools x C(4,2) = 24 pool games total.
+    Each game needs a 45-minute field slot (30min game + 5min halftime +
+    10min buffer), for 1,080 field-minutes of required capacity. Only one
+    field (Field 1) is available, for a single 2-hour (120-minute) window —
+    under a ninth of the field-time the schedule needs.
+  involves:
+    - "field:f1 availability 08:00-10:00 (only field in the tournament)"
+    - "division:u12 games_per_team=3"
+    - "division:u12 pool_size=4"
+    - "teams: 16 registered in u12"
