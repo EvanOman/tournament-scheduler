@@ -58,3 +58,9 @@ Thumbs.db
 
 # Output
 output/
+
+# Node / frontend (built assets under tourneydesk/web/static ARE committed)
+node_modules/
+
+# SQLite session stores
+*.db
