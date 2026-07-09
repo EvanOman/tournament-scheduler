@@ -15,6 +15,13 @@ from tourneydesk.session import SpecSession
 # `loop.call_soon_threadsafe`. `None` means "don't stream, just return the turn".
 TextDelta = Callable[[str], None]
 
+# Fired after every successful spec MUTATION inside a turn, so live UIs can
+# refresh the Rules panel and re-trigger speculative solves mid-turn instead of
+# only at turn end (a long multi-tool turn once left panels stale for 90s+
+# while the streamed text claimed the change had landed -- persona P4). Same
+# threading rules as TextDelta: cheap, non-blocking, may run in a worker thread.
+SpecMutated = Callable[[], None]
+
 
 @dataclass
 class AgentTurn:
@@ -32,7 +39,12 @@ class IntakeProvider(Protocol):
 
     session: SpecSession
 
-    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn: ...
+    async def send(
+        self,
+        director_message: str,
+        on_text_delta: TextDelta | None = None,
+        on_spec_mutated: SpecMutated | None = None,
+    ) -> AgentTurn: ...
 
 
 @runtime_checkable

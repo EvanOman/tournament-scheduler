@@ -22,6 +22,7 @@ from tourneydesk.providers.base import (
     IntakeProvider,
     OnTurn,
     Persona,
+    SpecMutated,
     TextDelta,
     run_conversation,
 )
@@ -67,8 +68,13 @@ class IntakeService:
     def session(self) -> SpecSession:
         return self.provider.session
 
-    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn:
-        return await self.provider.send(director_message, on_text_delta)
+    async def send(
+        self,
+        director_message: str,
+        on_text_delta: TextDelta | None = None,
+        on_spec_mutated: SpecMutated | None = None,
+    ) -> AgentTurn:
+        return await self.provider.send(director_message, on_text_delta, on_spec_mutated)
 
     async def run_conversation(
         self, persona: Persona, max_turns: int = 20, on_turn: OnTurn | None = None

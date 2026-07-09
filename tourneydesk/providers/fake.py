@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from tourneydesk.providers.base import AgentTurn, TextDelta
+from tourneydesk.providers.base import AgentTurn, SpecMutated, TextDelta
 from tourneydesk.session import SpecSession
 from tourneydesk.tools import dispatch
 
@@ -28,7 +28,12 @@ class FakeIntake:
         self.session = session
         self._script = list(script)
 
-    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn:
+    async def send(
+        self,
+        director_message: str,
+        on_text_delta: TextDelta | None = None,
+        on_spec_mutated: SpecMutated | None = None,
+    ) -> AgentTurn:
         if not self._script:
             text = "I have everything I need for now."
             _stream(text, on_text_delta)
@@ -47,6 +52,8 @@ class FakeIntake:
         for call in tool_calls:
             result = dispatch(self.session, call["name"], call["input"])
             echoes.append(result.content)
+            if on_spec_mutated is not None and not result.is_error:
+                on_spec_mutated()
 
         _stream(text, on_text_delta)
         return AgentTurn(text=text, tool_calls=tool_calls, echoes=echoes, complete=self.session.intake_complete)

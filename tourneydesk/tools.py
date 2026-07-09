@@ -333,6 +333,26 @@ TOOLS: list[dict[str, Any]] = [
         ["target", "target_type", "field_ids", "priority", "source_quote"],
     ),
     _tool(
+        "remove_time_preference",
+        "Call to withdraw the time preference(s) recorded for a team or division — when the "
+        "director retracts one, or when a preference YOU derived turns out wrong or unconfirmed.",
+        {
+            "target": {"type": "string", "description": "team_id or division_id whose time preferences to remove."},
+            "source_quote": _SOURCE_QUOTE_PROP,
+        },
+        ["target", "source_quote"],
+    ),
+    _tool(
+        "remove_field_preference",
+        "Call to withdraw the field preference(s) recorded for a team or division — when the "
+        "director retracts one, or when a preference YOU derived turns out wrong or unconfirmed.",
+        {
+            "target": {"type": "string", "description": "team_id or division_id whose field preferences to remove."},
+            "source_quote": _SOURCE_QUOTE_PROP,
+        },
+        ["target", "source_quote"],
+    ),
+    _tool(
         "get_spec_summary",
         "Call to review the full current draft before asking the director to confirm it, or whenever "
         "you need to re-orient on what has been captured so far. Takes no arguments.",
@@ -625,6 +645,18 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
                 source_quote=tool_input["source_quote"],
             )
             return ToolResult(f"Got it — noted a field preference for {tool_input['target']}.")
+
+        if name == "remove_time_preference":
+            n = session.remove_time_preferences(target=tool_input["target"], source_quote=tool_input["source_quote"])
+            if n == 0:
+                return ToolResult(f"No time preferences recorded for '{tool_input['target']}'.", is_error=True)
+            return ToolResult(f"Got it — removed {n} time preference(s) for {tool_input['target']}.")
+
+        if name == "remove_field_preference":
+            n = session.remove_field_preferences(target=tool_input["target"], source_quote=tool_input["source_quote"])
+            if n == 0:
+                return ToolResult(f"No field preferences recorded for '{tool_input['target']}'.", is_error=True)
+            return ToolResult(f"Got it — removed {n} field preference(s) for {tool_input['target']}.")
 
         if name == "get_spec_summary":
             return ToolResult(_summarize(session))

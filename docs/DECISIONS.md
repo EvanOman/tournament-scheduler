@@ -118,3 +118,20 @@ schedule questions from memory; rule 8 requires honesty about soft-preference en
 ## D19 — Intake wrap-up gated on schedulability (P2)
 The agent said "intake complete — good luck!" over a failing schedule. Prompt rule 5 now forbids
 closing out while the draft is known unschedulable.
+
+## D20 — Per-mutation spec push + verified-claims rule (persona round 3, P4)
+During long multi-tool turns the streamed chat claimed fixes had landed while the Rules/Schedule
+panels sat stale until turn end (90s+ contradiction). Providers now fire an on_spec_mutated
+callback after every successful mutation; the web layer pushes spec_updated and re-arms the
+speculative solver mid-turn. Prompt rule 9 forbids asserting "fixed/OPTIMAL" without a fresh
+get_schedule_summary after the mutations.
+
+## D21 — Derived values need director confirmation + preference removal tools (round 3, P1)
+The agent invented a 9AM–1PM window to encode "finish earlier" and attributed it to the
+director's quote — and had NO tool to remove a bad preference once recorded. Prompt rule 2 now
+requires proposing derived values and using the director's confirmation as the quote;
+remove_time_preference / remove_field_preference added.
+
+## D22 — Queued (solver objective, M6 lane): pack-first objective abandons available fields
+(P1: field restricted by 1h → 0 games; P5/P2: 20/20/8/0 imbalance). Needs a spread/idle-field
+penalty term in the CP-SAT objective + making the "use all my fields" ask expressible.

@@ -15,7 +15,7 @@ from typing import Any
 import anthropic
 
 from tourneydesk.prompts import SYSTEM_PROMPT
-from tourneydesk.providers.base import AgentTurn, TextDelta
+from tourneydesk.providers.base import AgentTurn, SpecMutated, TextDelta
 from tourneydesk.session import SpecSession
 from tourneydesk.tools import TOOLS, dispatch
 
@@ -34,7 +34,12 @@ class ClaudeIntake:
         self._client = anthropic.Anthropic()
         self._messages: list[dict[str, Any]] = []
 
-    async def send(self, director_message: str, on_text_delta: TextDelta | None = None) -> AgentTurn:
+    async def send(
+        self,
+        director_message: str,
+        on_text_delta: TextDelta | None = None,
+        on_spec_mutated: SpecMutated | None = None,
+    ) -> AgentTurn:
         self._messages.append({"role": "user", "content": director_message})
 
         echoes: list[str] = []
@@ -105,6 +110,8 @@ class ClaudeIntake:
                 # internals in the UI (persona findings).
                 if not result.is_error and block.name not in ("get_spec_summary", "get_schedule_summary"):
                     echoes.append(result.content)
+                    if on_spec_mutated is not None:
+                        on_spec_mutated()
                 if block.name == "mark_intake_complete" and not result.is_error:
                     complete = True
                 tool_results.append(

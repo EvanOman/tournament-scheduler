@@ -195,24 +195,35 @@ async def _handle_chat(
     await ws.send_json({"type": "user_message", "text": text})
 
     loop = asyncio.get_running_loop()
-    delta_q: asyncio.Queue[str | None] = asyncio.Queue()
+    event_q: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
 
     def on_delta(chunk: str) -> None:
         # Called from the worker thread; hop back onto the event loop safely.
-        loop.call_soon_threadsafe(delta_q.put_nowait, chunk)
+        loop.call_soon_threadsafe(event_q.put_nowait, ("text", chunk))
+
+    def on_spec_mutated() -> None:
+        # Push Rules-panel state and re-arm the speculative solve after EVERY
+        # mutation, not just at turn end — long multi-tool turns left the panels
+        # stale for 90s+ while the streamed text claimed changes had landed.
+        loop.call_soon_threadsafe(event_q.put_nowait, ("spec", ""))
 
     async def pump() -> None:
         while True:
-            chunk = await delta_q.get()
-            if chunk is None:
+            item = await event_q.get()
+            if item is None:
                 return
-            await ws.send_json({"type": "assistant_delta", "text": chunk})
+            kind, chunk = item
+            if kind == "text":
+                await ws.send_json({"type": "assistant_delta", "text": chunk})
+            else:
+                await ws.send_json({"type": "spec_updated", "rules": live.session.to_rules_json()})
+                solver.trigger()
 
     pump_task = asyncio.create_task(pump())
     try:
-        turn = await asyncio.to_thread(_run_send, live.service, text, on_delta)
+        turn = await asyncio.to_thread(_run_send, live.service, text, on_delta, on_spec_mutated)
     finally:
-        delta_q.put_nowait(None)
+        event_q.put_nowait(None)
         await pump_task
 
     await ws.send_json(
@@ -226,10 +237,10 @@ async def _handle_chat(
         solver.trigger()
 
 
-def _run_send(service: Any, text: str, on_delta: TextDelta) -> Any:
+def _run_send(service: Any, text: str, on_delta: TextDelta, on_spec_mutated: Any = None) -> Any:
     """Run one async provider turn to completion in a worker thread.
 
     A fresh event loop per call keeps the (possibly blocking) Anthropic SDK off
     the main loop; the FakeIntake pacing sleeps also run here.
     """
-    return asyncio.run(service.send(text, on_delta))
+    return asyncio.run(service.send(text, on_delta, on_spec_mutated))

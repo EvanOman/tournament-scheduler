@@ -105,6 +105,9 @@ def test_ws_persists_rules_across_reads() -> None:
     with client.websocket_connect(f"/ws/{sid}") as ws:
         ws.receive_json()  # session_state
         ws.send_json({"type": "chat", "text": "kick things off"})
+        # spec_updated now also fires mid-turn (per-mutation push); the turn —
+        # and thus store persistence — completes at assistant_message.
+        _drain_until(ws, [], lambda e: e["type"] == "assistant_message")
         _drain_until(ws, [], lambda e: e["type"] == "spec_updated")
 
     # After the first turn the tournament name + a division are captured and

@@ -392,6 +392,20 @@ class SpecSession:
         self.time_preferences.append((pref, source_quote))
         return pref
 
+    def remove_time_preferences(self, *, target: str, source_quote: str) -> int:
+        """Remove every time preference for `target`; returns how many were removed."""
+        del source_quote  # provenance recorded by the caller's transcript
+        before = len(self.time_preferences)
+        self.time_preferences = [(p, q) for p, q in self.time_preferences if p.target != target]
+        return before - len(self.time_preferences)
+
+    def remove_field_preferences(self, *, target: str, source_quote: str) -> int:
+        """Remove every field preference for `target`; returns how many were removed."""
+        del source_quote
+        before = len(self.field_preferences)
+        self.field_preferences = [(p, q) for p, q in self.field_preferences if p.target != target]
+        return before - len(self.field_preferences)
+
     def add_field_preference(
         self,
         *,
