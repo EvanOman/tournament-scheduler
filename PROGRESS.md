@@ -67,3 +67,17 @@ scheduling product on top of the existing CP-SAT solver).
 - **In flight**: M3 web core (opus worker, `m3-web-core` worktree — FastAPI/WS + 3-panel frontend,
   port 18780); M2 eval runner (orchestrator, `m2-eval-runner` worktree). After M3 merge: deploy via
   deploy skill, then 6-persona browser validation fleet (P1–P6, defined in session scratchpad).
+
+### Persona validation round 1 — 2026-07-09
+
+- Fleet: 6 sonnet persona agents (first-timer, veteran, chaos, infeasibility, skeptic, mobile)
+  drove the deployed site in isolated browsers. Unanimous P0: every browser joined `sessions[0]`,
+  so all six shared ONE conversation — cross-contamination invalidated most rubrics.
+- Real findings kept: mobile layout PASS at 390px (no h-scroll, tabs work); early intake quality
+  praised (plain-language clarifying questions, explicit conflict flagging); KeyError reprs and
+  error echoes leaked into chat; failed turns killed the WS loop silently; infeasibility text too
+  generic (M5 lane); field_size/format ontology conflation (D15, queued).
+- Fixes landed + redeployed: session-per-visit w/ URL-hash rejoin (D13), error echoes suppressed
+  (D14), actionable missing-arg messages, turn-failure resilience + visible error events.
+- Verified: two concurrent browsers → distinct sessions, zero cross-talk on live probe.
+- Round 2 launched against the fixed deployment.
