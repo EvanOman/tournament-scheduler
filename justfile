@@ -67,6 +67,10 @@ examples:
 typecheck:
     uv run ty check
 
+# Run the eval corpus (or a subset): just eval --ids b01_clean_small --provider fake
+eval *ARGS:
+    uv run python -m evals.runner --briefs evals/briefs {{ARGS}}
+
 # Full development setup
 setup: install
     @echo "Development environment ready!"
