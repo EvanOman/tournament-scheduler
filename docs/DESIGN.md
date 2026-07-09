@@ -127,6 +127,31 @@ final spec with no support in `facts`.
 - Output: `ConflictSet` JSON — list of human-readable constraint descriptors with the spec objects
   involved, suitable for NL translation and golden-set assertions.
 
+## 6a. Conflict explanation & repairs (M5, NL layer)
+
+- Package `tourneydesk/explain/`: turns a `ConflictSet` into a director-facing
+  `ConflictExplanation` (headline, narrative, 2–3 `RepairOption`s each with a tradeoff and
+  machine-actionable `SpecEdit` sketches referencing real spec ids). Entry points:
+  `engine.explain_conflict(spec, conflict, use_llm=None)` and
+  `engine.explain_infeasible_spec(spec)` (returns `None` when feasible).
+- Two paths, one output shape. **Deterministic** (always available, zero network): headline =
+  `conflict.summary`; narrative = summary + item descriptors; rule-based repairs per constraint
+  family, ordered by increasing director cost (rest → availability → field capacity → coaching),
+  deduped across families, capped at 3. Capacity math (games×slot-minutes vs available
+  field-minutes) gates capacity-adding repairs so they never carry contradictory numbers.
+  **LLM** (when `use_llm=True`, or `None` with `ANTHROPIC_API_KEY` set): one non-conversational
+  call per §3 conventions with structured outputs
+  (`output_config={"format": {"type": "json_schema", "schema": ConflictExplanation.model_json_schema()}}`),
+  frozen cacheable system prompt in `explain/prompts.py`, payload = `conflict.model_dump()` + a
+  compact spec digest.
+- Anti-confabulation guard: every `grounding` entry in an LLM explanation must be a verbatim
+  `ConflictItem.descriptor` from the input conflict; refusals, schema violations, or ungrounded
+  output all fall back to the deterministic path (logged warning). Explanations therefore never
+  assert facts the solver's unsat core did not establish.
+- CLI: `python -m tourneydesk.explain SPEC_YAML [--no-llm] [--json]` (`just explain FILE`),
+  standalone module — deliberately not part of `tourneydesk/cli.py`. Exit codes: 0 feasible,
+  2 infeasible-and-explained, 1 error/ambiguous.
+
 ## 7. Engineering standards
 
 - pystd: uv, ruff, ty, pytest; `just check` green before every commit; conventional commits.
