@@ -101,29 +101,45 @@ class ClaudeIntake:
                 break
 
             tool_results: list[dict[str, Any]] = []
-            for block in tool_use_blocks:
-                tool_calls.append({"name": block.name, "input": block.input})
-                result = dispatch(self.session, block.name, block.input)
-                # Echo only successful MUTATIONS as provenance chips. Errors are
-                # model-facing correction feedback, and read-only results (spec
-                # summaries) are multi-line internal dumps — both read as alarming
-                # internals in the UI (persona findings).
-                if not result.is_error and block.name not in ("get_spec_summary", "get_schedule_summary"):
-                    echoes.append(result.content)
-                    if on_spec_mutated is not None:
-                        on_spec_mutated()
-                if block.name == "mark_intake_complete" and not result.is_error:
-                    complete = True
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result.content,
-                        "is_error": result.is_error,
-                    }
-                )
-
-            self._messages.append({"role": "user", "content": tool_results})
+            try:
+                for block in tool_use_blocks:
+                    tool_calls.append({"name": block.name, "input": block.input})
+                    result = dispatch(self.session, block.name, block.input)
+                    # Echo only successful MUTATIONS as provenance chips. Errors are
+                    # model-facing correction feedback, and read-only results (spec
+                    # summaries) are multi-line internal dumps — both read as alarming
+                    # internals in the UI (persona findings).
+                    if not result.is_error and block.name not in ("get_spec_summary", "get_schedule_summary"):
+                        echoes.append(result.content)
+                        if on_spec_mutated is not None:
+                            on_spec_mutated()
+                    if block.name == "mark_intake_complete" and not result.is_error:
+                        complete = True
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result.content,
+                            "is_error": result.is_error,
+                        }
+                    )
+            finally:
+                # History-integrity invariant: every tool_use in the appended
+                # assistant message MUST get a tool_result, even if something
+                # above raised — a dangling tool_use permanently 400s every
+                # subsequent request on this conversation (persona P4 blocker).
+                answered = {r["tool_use_id"] for r in tool_results}
+                for block in tool_use_blocks:
+                    if block.id not in answered:
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Internal error while handling this call — try again.",
+                                "is_error": True,
+                            }
+                        )
+                self._messages.append({"role": "user", "content": tool_results})
 
             if response.stop_reason != "tool_use":
                 break

@@ -479,8 +479,14 @@ def _summarize(session: SpecSession) -> str:
     if not session.divisions:
         lines.append("No divisions yet.")
     for d in session.divisions.values():
-        team_count = sum(1 for t in session.teams.values() if t.division_id == d.id)
-        lines.append(f"- {d.name} ({_division_label(d)}, {d.game_duration_minutes}-min games, {team_count} team(s))")
+        div_teams = [t for t in session.teams.values() if t.division_id == d.id]
+        lines.append(
+            f"- {d.name} ({_division_label(d)}, {d.game_duration_minutes}-min games, {len(div_teams)} team(s))"
+        )
+        if div_teams:
+            # ids included so existing (placeholder) teams can be referenced in later
+            # tool calls instead of accidentally re-created by name (persona P4).
+            lines.append("    teams: " + ", ".join(f"{t.name} [{t.id}]" for t in div_teams))
     if not session.fields:
         lines.append("No fields yet.")
     for f in session.fields.values():
@@ -694,5 +700,13 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
         )
     except (ValueError, LookupError) as exc:
         return ToolResult(content=str(exc), is_error=True)
+    except Exception as exc:  # noqa: BLE001 -- dispatch must NEVER raise: an escaped
+        # exception mid-tool-loop once left the conversation history with a dangling
+        # tool_use (no tool_result), permanently 400-ing every later turn (persona P4).
+        return ToolResult(
+            content=f"Tool '{name}' failed on that input ({type(exc).__name__}: {exc}). "
+            "Adjust the arguments and call it again.",
+            is_error=True,
+        )
 
     return ToolResult(content=f"Unhandled tool '{name}'.", is_error=True)

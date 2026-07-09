@@ -282,6 +282,15 @@ class SpecSession:
         created: list[DraftTeam] = []
         for entry in teams:
             name = str(entry["name"])
+            # A duplicate name inside one division silently created a second team
+            # that RENDERED as "Team 2 v Team 2" in the schedule (persona P4).
+            existing = [t for t in self.teams.values() if t.division_id == division_id and t.name == name]
+            if existing:
+                raise ValueError(
+                    f"A team named '{name}' already exists in division '{division_id}' "
+                    f"(id '{existing[0].id}'). To modify or reference the existing team, use its id; "
+                    "teams are never duplicated by name."
+                )
             raw_id = entry.get("id")
             team_id = str(raw_id) if raw_id else self._derive_team_id(division_id, name)
             club = entry.get("club")

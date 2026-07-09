@@ -143,3 +143,18 @@ dispute. `solve_current(session)` memoizes on the clamped spec's JSON fingerprin
 speculative solve and the agent's digest now always describe the same solution. The digest also
 lists every game per team (day, time, opponent, field) so the agent never asserts matchup facts
 it cannot see, and prompt rule 7 scopes claims to summary contents.
+
+## D24 — Turn crash-proofing: dispatch never raises, history integrity guaranteed (round 4, P4 blocker)
+A combined two-change message crashed the turn instantly and permanently (4/4 retries): an
+exception escaping dispatch() mid-tool-loop left the conversation history with a dangling
+tool_use (no tool_result), 400-ing every later request on that session. dispatch() now has a
+final broad except returning an actionable is_error result, and the provider's tool loop
+appends error tool_results for any unanswered tool_use in a finally block — the transcript can
+no longer be corrupted by a single bad turn.
+
+## D25 — Duplicate team names rejected; team ids surfaced in the spec summary (round 4, P4)
+"Dave coaches Team 1/2/3" re-created three new teams with those names (27-team roster), which
+rendered as an apparent "Team 2 v Team 2" self-match (two distinct ids sharing a name).
+add_teams now rejects a duplicate name within a division with a pointer to the existing team's
+id, and get_spec_summary lists every team as "name [id]" so existing placeholders are
+referenceable instead of accidentally recreated.
