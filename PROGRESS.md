@@ -81,3 +81,23 @@ scheduling product on top of the existing CP-SAT solver).
   (D14), actionable missing-arg messages, turn-failure resilience + visible error events.
 - Verified: two concurrent browsers → distinct sessions, zero cross-talk on live probe.
 - Round 2 launched against the fixed deployment.
+
+### Persona rounds 2–3 + fix batches — 2026-07-09
+
+- **Round 2** (fresh fleet, post-isolation): P3 chaos ✓ SATISFIED, P6 mobile ✓ SATISFIED (incl.
+  hash-reload rejoin). P1/P2/P4/P5 ISSUES → fix batch (D16–D19): game_format decoupled from
+  field_size (P2's 8v8 was unstorable and cascaded into zero-eligible-fields solver failure),
+  10s speculative clamp + honest "inconclusive" status, get_schedule_summary grounding tool,
+  intake-complete gated on schedulability, error-echo suppression.
+- **Round 3**: P2 veteran ✓ SATISFIED (8v8 verbatim; agent caught + collaboratively repaired a
+  capacity infeasibility before closing intake). P1/P4/P5 ISSUES → fix batch (D20–D23):
+  per-mutation spec push (panels update mid-turn), verified-claims prompt rule, preference
+  removal tools + derived-values-need-confirmation provenance rule, memoized solve shared by
+  panel and digest (CP-SAT nondeterminism made them describe different optima), game-level
+  digest data. D22 queued (M6): field-spread objective.
+- **Round 4 in flight**: P1/P4/P5 against the redeployed build with targeted regression scripts.
+- **Orchestrator lanes delivered, READY TO MERGE (held until round 4 concludes):**
+  `m2-eval-runner` — persona eval runner + facts-scoped F1 scoring; live canary scores
+  b01/b03/b15 F1=1.000, hallucinated constraints 0 incl. adversarial bait; 270 tests green.
+  `m5-explanation` — conflict explanation + repair-option engine (deterministic + LLM w/
+  grounding guard), `just explain`; 227 tests green.
