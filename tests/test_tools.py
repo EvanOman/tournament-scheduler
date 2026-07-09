@@ -51,7 +51,7 @@ class TestSchemas:
 
     def test_mutation_tools_include_source_quote(self):
         for tool in TOOLS:
-            if tool["name"] in ("get_spec_summary",):
+            if tool["name"] in ("get_spec_summary", "get_schedule_summary"):
                 continue
             props = tool["input_schema"]["properties"]
             if tool["name"] == "mark_intake_complete":

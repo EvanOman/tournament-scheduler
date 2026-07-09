@@ -99,14 +99,21 @@ TOOLS: list[dict[str, Any]] = [
         "Call when the director introduces a new age group / division (e.g. 'U10 Boys'). Provide "
         "field_size and game_duration_minutes if stated; leave other fields null if not stated -- "
         "they will be filled with labeled defaults later. Do not guess game_duration_minutes; ask "
-        "if genuinely unknown.",
+        "if genuinely unknown. field_size describes the PHYSICAL FIELD the division needs (it "
+        "gates which fields the solver may use); game_format records the playing format (e.g. "
+        "'8v8') VERBATIM as stated and is never derived from field size.",
         {
             "id": {"type": "string", "description": "Short unique id, e.g. 'u10b'."},
             "name": {"type": "string", "description": "Human-readable division name, e.g. 'U10 Boys'."},
             "field_size": {
                 "type": "string",
                 "enum": _FIELD_SIZE_ENUM,
-                "description": "Field size category this division plays on.",
+                "description": "Physical field size category this division plays on (gates field eligibility).",
+            },
+            "game_format": {
+                "type": ["string", "null"],
+                "description": "Playing format exactly as the director stated it (e.g. '8v8', '7v7'), "
+                "or null if not stated. Never infer this from field size.",
             },
             "game_duration_minutes": {"type": "integer", "description": "Length of one game, in minutes."},
             "halftime_minutes": {"type": ["integer", "null"], "description": "Halftime length, or null if not stated."},
@@ -133,6 +140,7 @@ TOOLS: list[dict[str, Any]] = [
             "id",
             "name",
             "field_size",
+            "game_format",
             "game_duration_minutes",
             "halftime_minutes",
             "buffer_minutes",
@@ -151,6 +159,10 @@ TOOLS: list[dict[str, Any]] = [
             "id": {"type": "string", "description": "Id of the division to update."},
             "name": {"type": ["string", "null"]},
             "field_size": {"anyOf": [{"type": "string", "enum": _FIELD_SIZE_ENUM}, {"type": "null"}]},
+            "game_format": {
+                "type": ["string", "null"],
+                "description": "Playing format verbatim (e.g. '8v8'), or null to leave unchanged.",
+            },
             "game_duration_minutes": {"type": ["integer", "null"]},
             "halftime_minutes": {"type": ["integer", "null"]},
             "buffer_minutes": {"type": ["integer", "null"]},
@@ -164,6 +176,7 @@ TOOLS: list[dict[str, Any]] = [
             "id",
             "name",
             "field_size",
+            "game_format",
             "game_duration_minutes",
             "halftime_minutes",
             "buffer_minutes",
@@ -327,6 +340,16 @@ TOOLS: list[dict[str, Any]] = [
         [],
     ),
     _tool(
+        "get_schedule_summary",
+        "Call BEFORE answering ANY question about the current sample schedule — why a team plays "
+        "when it does, how games are spread across fields or days, whether a recent change actually "
+        "took effect, or whether two games conflict. Runs the solver on the current draft and "
+        "returns the real schedule state. NEVER guess, speculate, or claim the preview is stale: "
+        "this tool is your ground truth. Takes no arguments.",
+        {},
+        [],
+    ),
+    _tool(
         "mark_intake_complete",
         "Call ONLY after calling get_spec_summary, reading the summary back to the director in plain "
         "language, and receiving their explicit confirmation that it is correct and complete.",
@@ -348,8 +371,75 @@ _TOOL_NAMES = {t["name"] for t in TOOLS}
 # ---------------------------------------------------------------------------
 
 
-def _field_label(size: str) -> str:
-    return {"small": "4v4/3v3", "medium": "7v7", "large": "9v9", "full": "11v11"}.get(size, size)
+def _schedule_digest(session: SpecSession) -> str:
+    """Solve the current draft and return a compact, factual schedule digest.
+
+    This is the agent's ground truth for schedule questions (persona P5 caught
+    it confabulating about solve state it could not see). Same code path as the
+    UI's speculative solve, same 10s clamp.
+    """
+    from tournament_scheduler.pools import assign_pools  # noqa: PLC0415 -- avoids tools<->core import cycle
+    from tournament_scheduler.solver import solve  # noqa: PLC0415
+    from tournament_scheduler.validator import validate  # noqa: PLC0415
+    from tourneydesk.core.service import SPECULATIVE_SOLVE_SECONDS  # noqa: PLC0415
+    from tourneydesk.session import IncompleteSpecError  # noqa: PLC0415
+
+    try:
+        spec, assumptions = session.to_spec()
+    except IncompleteSpecError as exc:
+        return "No schedule yet — the draft is missing:\n" + "\n".join(f"  - {m}" for m in exc.missing)
+
+    spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
+    schedule = solve(spec, assign_pools(spec))
+    status = schedule.stats.status
+    if status == "INFEASIBLE":
+        return "Current draft is INFEASIBLE — no schedule satisfies all hard constraints as stated."
+    if status not in ("OPTIMAL", "FEASIBLE"):
+        return (
+            "The quick solve pass timed out UNDECIDED — the draft is very tightly constrained. "
+            "Neither a schedule nor a proof of impossibility yet."
+        )
+
+    result = validate(schedule, spec)
+    team_names = {t.id: t.name for t in spec.teams}
+    lines = [
+        f"Schedule status: {status} ({schedule.stats.wall_time_seconds:.1f}s), "
+        f"{len(schedule.games)} games, validator {'PASSED' if result.valid else 'FAILED'}."
+    ]
+    if assumptions:
+        lines.append("Applied assumptions: " + "; ".join(assumptions))
+
+    by_field: dict[str, list[Any]] = {f.id: [] for f in spec.fields}
+    for g in schedule.games:
+        by_field.setdefault(g.field_id, []).append(g)
+    field_names = {f.id: f.name for f in spec.fields}
+    lines.append("Per field:")
+    for fid, games in by_field.items():
+        if not games:
+            lines.append(f"  - {field_names.get(fid, fid)}: NO GAMES ASSIGNED")
+            continue
+        days = sorted({g.start_time.strftime("%a") for g in games})
+        first = min(g.start_time for g in games).strftime("%a %H:%M")
+        last = max(g.end_time for g in games).strftime("%a %H:%M")
+        lines.append(f"  - {field_names.get(fid, fid)}: {len(games)} games, days {'/'.join(days)}, {first}–{last}")
+
+    lines.append("Per team (games by day):")
+    by_team: dict[str, dict[str, int]] = {}
+    for g in schedule.games:
+        for tid in (g.home_team_id, g.away_team_id):
+            day = g.start_time.strftime("%a")
+            by_team.setdefault(tid, {})[day] = by_team.setdefault(tid, {}).get(day, 0) + 1
+    for tid, days_map in by_team.items():
+        parts = ", ".join(f"{d}×{n}" for d, n in sorted(days_map.items()))
+        lines.append(f"  - {team_names.get(tid, tid)}: {parts}")
+    return "\n".join(lines)
+
+
+def _division_label(d: Any) -> str:
+    # Never gloss field size as a playing format (an auto-derived "7v7" once
+    # overwrote a director's explicit "8v8" — persona finding, DECISIONS D15/D16).
+    fmt = f"{d.game_format}, " if d.game_format else ""
+    return f"{fmt}{d.field_size.value} fields"
 
 
 def _summarize(session: SpecSession) -> str:
@@ -358,10 +448,7 @@ def _summarize(session: SpecSession) -> str:
         lines.append("No divisions yet.")
     for d in session.divisions.values():
         team_count = sum(1 for t in session.teams.values() if t.division_id == d.id)
-        lines.append(
-            f"- {d.name} ({_field_label(d.field_size.value)}, {d.game_duration_minutes}-min games, "
-            f"{team_count} team(s))"
-        )
+        lines.append(f"- {d.name} ({_division_label(d)}, {d.game_duration_minutes}-min games, {team_count} team(s))")
     if not session.fields:
         lines.append("No fields yet.")
     for f in session.fields.values():
@@ -408,6 +495,7 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
                 id=tool_input["id"],
                 name=tool_input["name"],
                 field_size=tool_input["field_size"],
+                game_format=tool_input.get("game_format"),
                 game_duration_minutes=tool_input["game_duration_minutes"],
                 halftime_minutes=tool_input.get("halftime_minutes"),
                 buffer_minutes=tool_input.get("buffer_minutes"),
@@ -417,15 +505,14 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
                 bracket_after_pools=tool_input.get("bracket_after_pools"),
                 source_quote=tool_input["source_quote"],
             )
-            return ToolResult(
-                f"Got it — added {d.name}, {_field_label(d.field_size.value)}, {d.game_duration_minutes}-min games."
-            )
+            return ToolResult(f"Got it — added {d.name}, {_division_label(d)}, {d.game_duration_minutes}-min games.")
 
         if name == "update_division":
             d = session.update_division(
                 id=tool_input["id"],
                 name=tool_input.get("name"),
                 field_size=tool_input.get("field_size"),
+                game_format=tool_input.get("game_format"),
                 game_duration_minutes=tool_input.get("game_duration_minutes"),
                 halftime_minutes=tool_input.get("halftime_minutes"),
                 buffer_minutes=tool_input.get("buffer_minutes"),
@@ -469,7 +556,7 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
                 source_quote=tool_input["source_quote"],
             )
             return ToolResult(
-                f"Got it — added field {f.name} ({_field_label(f.size.value)}) with "
+                f"Got it — added field {f.name} ({f.size.value}-size) with "
                 f"{len(f.availability)} availability window(s)."
             )
 
@@ -541,6 +628,9 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
 
         if name == "get_spec_summary":
             return ToolResult(_summarize(session))
+
+        if name == "get_schedule_summary":
+            return ToolResult(_schedule_digest(session))
 
         if name == "mark_intake_complete":
             session.mark_intake_complete(confirmation_quote=tool_input["confirmation_quote"])

@@ -37,7 +37,22 @@ export function renderSchedule(root: HTMLElement, state: AppState, onRerender: (
     root.append(waiting(p));
     return;
   }
+  if (p.status === "inconclusive") {
+    root.append(
+      el("div", { class: "sched-state" }, [
+        el("p", { class: "sched-state-title", text: "Still crunching — this one is tight" }),
+        el("p", { class: "sched-state-sub", text: p.message ?? "The quick solve pass ran out of time." }),
+      ]),
+    );
+    return;
+  }
   if (p.status === "infeasible" || p.status === "invalid") {
+    // A stale conflict banner under a live "solving…" tag reads as contradictory
+    // (persona P4) — while a new solve runs, show the solving state alone.
+    if (state.solvePhase === "solving") {
+      root.append(el("div", { class: "sched-note", text: "Re-solving with your latest changes…" }));
+      return;
+    }
     root.append(conflict(p));
     return;
   }
@@ -142,7 +157,7 @@ function teamItineraries(p: SchedulePayload): HTMLElement {
       const opp = g.home_team_id === t.id ? g.away : g.home;
       games.append(
         el("div", { class: "team-game", style: `--accent:${divisionColor(t.color_index)}` }, [
-          el("span", { class: "tg-time", text: fmtTime(g.start) }),
+          el("span", { class: "tg-time", text: `${g.day} ${fmtTime(g.start)}` }),
           el("span", { class: "tg-opp", text: `v ${opp}` }),
           el("span", { class: "tg-field", text: g.field_name }),
         ]),

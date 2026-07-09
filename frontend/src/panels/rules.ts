@@ -39,7 +39,10 @@ export function renderRules(root: HTMLElement, state: AppState): void {
         "Divisions",
         rules.divisions.map((d, i) => {
           const bits = [
-            fieldLabel(d.field_size),
+            // Show a format only if the director actually stated one — glossing
+            // field size as a format fabricated "4v4/3v3" claims (persona P1/P2).
+            d.game_format,
+            `${d.field_size} fields`,
             `${d.game_duration_minutes}′ games`,
             d.games_per_team ? `${d.games_per_team} games/team` : null,
             d.min_rest_minutes ? `${d.min_rest_minutes}′ rest` : null,
@@ -71,7 +74,7 @@ export function renderRules(root: HTMLElement, state: AppState): void {
         "Fields",
         rules.fields.map((f) => {
           const windows = f.availability.map((w) => `${fmtTime(w.start)}–${fmtTime(w.end)}`).join(", ");
-          return card(f.name, `${fieldLabel(f.size)} · ${windows || "no window yet"}`, f.source_quotes);
+          return card(f.name, `${f.size}-size · ${windows || "no window yet"}`, f.source_quotes);
         }),
       ),
     );
@@ -155,6 +158,3 @@ function card(title: string, detail: string, quotes: string[], accent?: string):
   return node;
 }
 
-function fieldLabel(size: string): string {
-  return { small: "4v4/3v3", medium: "7v7", large: "9v9", full: "11v11" }[size] ?? size;
-}

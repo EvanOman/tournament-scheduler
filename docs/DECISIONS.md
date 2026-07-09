@@ -94,3 +94,27 @@ argument (more important now that schemas are non-strict — see D-strict note i
 game format. Vic (P2) said "U10 plays 8v8 on the small fields" but the enum maps small→"4v4/3v3".
 Fix direction: per-division format string decoupled from field size. Not blocking; queued for a
 follow-up branch with the M5 explanation work.
+
+## D16 — game_format decoupled from field_size (2026-07-09, persona round 2, CRITICAL)
+P2 proved the field_size→format gloss isn't cosmetic: "U10 plays 8v8" was stored as medium,
+displayed "7v7", was uncorrectable, and the size auto-categorization left U10 zero eligible
+fields → hard solver failure. DivisionSpec now carries `game_format` (verbatim, display/record
+only); field_size remains the eligibility gate; every "small→4v4/3v3"-style gloss removed from
+tools, prompt, and UI. Rejected alternative: format-driven field matching (formats vary by
+region/club; the physical field is what the solver actually needs).
+
+## D17 — Speculative solves clamped to 10s + honest "inconclusive" status (P4)
+Repair turns fire several mutations; 60s-budget solves stacked into a 3+ min "SOLVING…" hang
+over a stale conflict banner. Speculative path now clamps max_solve_seconds to 10 and maps
+CP-SAT UNKNOWN to a new `inconclusive` status with honest copy; the frontend shows a re-solving
+state instead of a stale conflict while a solve runs.
+
+## D18 — get_schedule_summary: the agent can see the schedule (P5)
+Under interrogation the agent deflected ("I can't see the preview") and once confabulated a
+"stale preview" excuse contradicted by visible UI state. New read-only tool solves the current
+draft (same clamp) and returns per-field/per-team-by-day facts; prompt rule 7 forbids answering
+schedule questions from memory; rule 8 requires honesty about soft-preference enforcement.
+
+## D19 — Intake wrap-up gated on schedulability (P2)
+The agent said "intake complete — good luck!" over a failing schedule. Prompt rule 5 now forbids
+closing out while the draft is known unschedulable.

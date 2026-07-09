@@ -82,6 +82,11 @@ class DivisionSpec(BaseModel):
     id: str
     name: str
     field_size: FieldSize
+    game_format: str | None = Field(
+        default=None,
+        description="Playing format exactly as stated (e.g. '8v8'). Display/record only — "
+        "field eligibility is governed by field_size; formats never derive from it.",
+    )
     game_duration_minutes: int = Field(ge=10, le=120)
     halftime_minutes: int = Field(default=0, ge=0, le=15)
     buffer_minutes: int = Field(default=10, ge=0, le=60, description="Changeover buffer between games on same field")

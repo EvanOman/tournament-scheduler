@@ -33,6 +33,7 @@ export interface DivisionRule {
   id: string;
   name: string;
   field_size: string;
+  game_format: string | null;
   game_duration_minutes: number;
   halftime_minutes: number | null;
   min_rest_minutes: number | null;
@@ -93,6 +94,7 @@ export interface GameView {
   field_name: string;
   start: string;
   end: string;
+  day: string;
   start_offset_min: number;
   duration_min: number;
 }
@@ -112,7 +114,7 @@ export interface TeamView {
   games: GameView[];
 }
 
-export type SolveStatus = "incomplete" | "infeasible" | "invalid" | "solved";
+export type SolveStatus = "incomplete" | "infeasible" | "invalid" | "solved" | "inconclusive";
 
 export interface SchedulePayload {
   status: SolveStatus;

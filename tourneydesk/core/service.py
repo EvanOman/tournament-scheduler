@@ -27,7 +27,12 @@ from tourneydesk.providers.base import (
 )
 from tourneydesk.session import IncompleteSpecError, SpecSession
 
-SolveStatus = Literal["incomplete", "infeasible", "invalid", "solved"]
+SolveStatus = Literal["incomplete", "infeasible", "invalid", "solved", "inconclusive"]
+
+# Speculative solves back a live UI panel: they must return fast, not exhaust the
+# spec's full (default 60s) budget — repair turns fire several mutations back to
+# back, and 60s solves stacked into a multi-minute "SOLVING…" hang (persona P4).
+SPECULATIVE_SOLVE_SECONDS = 10
 
 
 @dataclass
@@ -92,10 +97,15 @@ class IntakeService:
         except IncompleteSpecError as exc:
             return SolveOutcome(status="incomplete", missing=exc.missing)
 
+        spec = spec.model_copy(update={"max_solve_seconds": min(spec.max_solve_seconds, SPECULATIVE_SOLVE_SECONDS)})
         pools = assign_pools(spec)
         schedule = solve(spec, pools)
-        if schedule.stats.status not in ("OPTIMAL", "FEASIBLE"):
+        if schedule.stats.status == "INFEASIBLE":
             return SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule, spec=spec)
+        if schedule.stats.status not in ("OPTIMAL", "FEASIBLE"):
+            # UNKNOWN = the clamped solve timed out undecided. Saying "can't be met"
+            # here is a lie (persona P4 saw exactly that); be honest instead.
+            return SolveOutcome(status="inconclusive", assumptions=assumptions, schedule=schedule, spec=spec)
 
         result = validate(schedule, spec)
         status: SolveStatus = "solved" if result.valid else "invalid"

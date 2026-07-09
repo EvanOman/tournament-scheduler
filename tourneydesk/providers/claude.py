@@ -99,9 +99,11 @@ class ClaudeIntake:
             for block in tool_use_blocks:
                 tool_calls.append({"name": block.name, "input": block.input})
                 result = dispatch(self.session, block.name, block.input)
-                # Error results are model-facing correction feedback, not provenance
-                # the director should see — they read as alarming internals in the UI.
-                if not result.is_error:
+                # Echo only successful MUTATIONS as provenance chips. Errors are
+                # model-facing correction feedback, and read-only results (spec
+                # summaries) are multi-line internal dumps — both read as alarming
+                # internals in the UI (persona findings).
+                if not result.is_error and block.name not in ("get_spec_summary", "get_schedule_summary"):
                     echoes.append(result.content)
                 if block.name == "mark_intake_complete" and not result.is_error:
                     complete = True

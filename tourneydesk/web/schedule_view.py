@@ -39,6 +39,7 @@ def _game_dict(
         "field_name": field_names.get(game.field_id, game.field_id),
         "start": game.start_time.isoformat(),
         "end": game.end_time.isoformat(),
+        "day": game.start_time.strftime("%a %b %d").replace(" 0", " "),
         "start_offset_min": int((game.start_time - day_start).total_seconds() // 60),
         "duration_min": int((game.end_time - game.start_time).total_seconds() // 60),
     }
@@ -59,6 +60,15 @@ def schedule_payload(outcome: SolveOutcome) -> dict[str, Any]:
 
     if outcome.status == "incomplete":
         base["message"] = "Waiting on a few more details before a sample schedule can be drawn."
+        return base
+
+    if outcome.status == "inconclusive":
+        base["message"] = (
+            "This schedule is very tight — the quick solver pass ran out of time before "
+            "deciding. Ask in chat what's making it hard, or simplify a constraint."
+        )
+        if outcome.schedule is not None:
+            base["stats"] = outcome.schedule.stats.model_dump()
         return base
 
     schedule = outcome.schedule
