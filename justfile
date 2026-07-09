@@ -94,3 +94,9 @@ typecheck:
 setup: install
     @echo "Development environment ready!"
     @echo "Run 'just check' to validate your setup"
+
+# Restart the deployed systemd service and verify health
+redeploy:
+    systemctl --user restart tourneydesk.service
+    sleep 2
+    curl -sf -o /dev/null http://localhost:18780/ && echo "tourneydesk healthy on :18780"
