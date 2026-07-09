@@ -82,6 +82,10 @@ solve FILE:
 solve-html FILE:
     uv run tournament-scheduler solve {{FILE}} --format html
 
+# Explain why a spec cannot be scheduled (add near the solve recipes)
+explain FILE *ARGS:
+    uv run python -m tourneydesk.explain {{FILE}} {{ARGS}}
+
 # Generate example fixtures
 examples:
     uv run python -m tournament_scheduler.fixtures
