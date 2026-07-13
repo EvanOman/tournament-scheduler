@@ -185,3 +185,15 @@ live smoke: b01/b03/b15 all F1=1.000, hallucinated=0 — including the adversari
 model id, prompt version (sha256 of prompts.py, 12 hex), and per-brief breakdown, with trends
 tracked over time. Rejected: ignoring them as build artifacts (kills trend tracking and makes
 eval claims unauditable).
+
+## D29 — Subscription-billed provider via Claude Agent SDK (2026-07-12)
+The persona campaign exhausted API credits because product turns (ClaudeIntake → raw anthropic
+SDK) pick up ANTHROPIC_API_KEY (exported in ~/.zshrc, baked into the service env). New default
+provider AgentSDKIntake drives the Claude Agent SDK (bundled Claude Code binary, OAuth login) —
+turns bill the owner's Max subscription. Verified live with a zero-credit API account.
+POLICY BOUNDARY: personal/dev use by the account owner only — Anthropic does not permit offering
+claude.ai login/limits to a product's users (incl. Agent SDK agents); anything user-facing runs
+TOURNEYDESK_PROVIDER=api. Key scrubbed from the process env on provider construction (Python
+ClaudeAgentOptions.env merges, so popping the parent env is the only reliable scrub);
+setting_sources=[] so local CLAUDE.md never leaks into product turns; tools=[] +
+allowed_tools=["mcp__spec__*"] restricts the agent to the 19 spec tools.
