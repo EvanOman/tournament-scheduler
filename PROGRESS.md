@@ -6,10 +6,10 @@ scheduling product on top of the existing CP-SAT solver).
 ## Milestone checklist
 
 - [x] **M1 — Agent skeleton**: ClaudeIntake + strict spec-mutation tools + `tourneydesk chat --brief` CLI harness + FakeIntake + fake-LLM e2e test *(merged; full gate green 2026-07-09)*
-- [ ] **M2 — Scoreboard**: golden brief corpus ✅ (15 briefs merged) · persona-driven eval runner + metrics JSON + CI gate ⏳ (in flight, `m2-eval-runner`)
-- [ ] **M3 — Web core**: FastAPI + WebSocket chat, live Rules panel, SQLite spec persistence (screenshot evidence)
-- [ ] **M4 — Speculative solve**: debounced background solves, Sample Schedule panel, assumption-labeled defaults
-- [ ] **M5 — Infeasibility engine**: instrumented solver + minimal conflict extraction ✅ (merged) · NL explanation + repairs ⏳
+- [x] **M2 — Scoreboard**: corpus + eval runner + facts-scoped F1 scoring merged; canary F1=1.000, 0 hallucinated
+- [x] **M3 — Web core**: merged, deployed (systemd + Tailscale :8445), persona-validated
+- [x] **M4 — Speculative solve**: merged (10s clamp, memoized, mid-turn push), persona-validated
+- [x] **M5 — Infeasibility engine**: solver instrumentation + conflict extraction + explanation/repair engine merged (web wiring of repair UI still open)
 - [ ] **M6 — Adjustment loop**: minimal-churn re-solve, schedule diff view, disruption briefs
 - [ ] **M7 — Explanation & brackets**: explanation bundle, solver-grounded "why" answers, bracket phase
 - [ ] **M8 — Polish & full corpus**: 25+ briefs, eval trend doc, README refresh, design polish, tag v0.2.0
@@ -120,3 +120,19 @@ scheduling product on top of the existing CP-SAT solver).
   P4 Hank: rounds 1–4 findings all fixed and unit-verified; final live browser regression
   blocked on API credits. **Resume plan**: after top-up, re-run the round-5 Hank script
   (persona prompt archived in session; scenario in this file's round-4 entry).
+
+### Campaign complete — 2026-07-12
+
+- **Billing root cause fixed (D29)**: product turns were API-billed via ANTHROPIC_API_KEY
+  (exported in ~/.zshrc + baked into the service env). New default provider `AgentSDKIntake`
+  (Claude Agent SDK on the owner's Claude Code OAuth login) bills the Max subscription —
+  verified live with a zero-credit API account. TOURNEYDESK_PROVIDER=subscription|api|fake;
+  policy boundary documented (personal/dev use only; user-facing = api).
+- **Round 6 (P4 Hank, subscription-billed): SATISFIED — final tally 6/6 personas satisfied.**
+  Full gate: 274 passed. Goal condition met: deployed, persona-validated end to end.
+- **Backlog for next iteration** (in priority order): (1) MEDIUM: message sent mid-stream is
+  silently dropped — queue or reject visibly (P4 r6); (2) wire the M5 explain/repair engine
+  into web chat + structured repair UI; (3) D22 field-spread solver objective; (4) stale
+  source-quote refresh after corrections; (5) agent re-litigates already-stated constraints
+  before resolving them (P4 r6, low); (6) M7 brackets + explanation bundle; (7) full 15-brief
+  live eval sweep on the subscription provider + trend doc; (8) M8 polish + v0.2.0 tag.
