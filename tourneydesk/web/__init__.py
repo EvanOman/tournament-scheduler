@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from tourneydesk.web.app import claude_factory, create_app, fake_factory
+from tourneydesk.web.app import agent_sdk_factory, claude_factory, create_app, fake_factory
 
-__all__ = ["create_app", "claude_factory", "fake_factory"]
+__all__ = ["create_app", "agent_sdk_factory", "claude_factory", "fake_factory"]

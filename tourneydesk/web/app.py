@@ -51,6 +51,15 @@ def claude_factory(session: SpecSession) -> IntakeProvider:
     return ClaudeIntake(session)
 
 
+def agent_sdk_factory(session: SpecSession) -> IntakeProvider:
+    # Imported lazily: the SDK spawns a bundled Claude Code binary and scrubs
+    # ANTHROPIC_API_KEY from the process env on construction (see the module
+    # docstring for the personal-use-only policy boundary, DECISIONS D29).
+    from tourneydesk.providers.agent_sdk import AgentSDKIntake
+
+    return AgentSDKIntake(session)
+
+
 def fake_factory(session: SpecSession) -> IntakeProvider:
     return FakeIntake(session, list(CANNED_SCRIPT))
 

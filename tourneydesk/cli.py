@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import socket
 from pathlib import Path
 from typing import Any
@@ -85,18 +86,22 @@ def _print_turn(director_message: str, turn: AgentTurn) -> None:
 @click.option("--host", default="127.0.0.1", help="Host/interface to bind.")
 @click.option(
     "--provider",
-    type=click.Choice(["claude", "fake"]),
-    default="claude",
-    help="claude = real intake agent (needs ANTHROPIC_API_KEY); fake = offline canned demo.",
+    type=click.Choice(["subscription", "api", "fake"]),
+    default=None,
+    help="subscription = Agent SDK on the owner's Claude Code login (personal/dev use ONLY); "
+    "api = anthropic SDK with ANTHROPIC_API_KEY (required for anything user-facing); "
+    "fake = offline canned demo. Default: $TOURNEYDESK_PROVIDER, else subscription.",
 )
 @click.option("--db", "db_path", default="tourneydesk.db", help="SQLite file for session persistence.")
-def serve(port: int, host: str, provider: str, db_path: str) -> None:
+def serve(port: int, host: str, provider: str | None, db_path: str) -> None:
     """Serve the TourneyDesk web app (SPA + REST + WebSocket)."""
     import uvicorn
 
-    from tourneydesk.web import claude_factory, create_app, fake_factory
+    from tourneydesk.web import agent_sdk_factory, claude_factory, create_app, fake_factory
 
-    factory = fake_factory if provider == "fake" else claude_factory
+    provider = provider or os.environ.get("TOURNEYDESK_PROVIDER", "subscription")
+    factories = {"subscription": agent_sdk_factory, "api": claude_factory, "fake": fake_factory}
+    factory = factories[provider]
     chosen = _find_free_port(port, host=host)
     if chosen != port:
         console.print(f"[yellow]Port {port} is busy; using {chosen} instead (nothing was killed).[/yellow]")
