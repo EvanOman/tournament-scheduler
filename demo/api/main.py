@@ -13,6 +13,10 @@ Deployed on Render free tier; the site proxies /api/tourneydesk/* to it
 
 from __future__ import annotations
 
+import asyncio
+import time
+import uuid
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime
@@ -35,8 +39,10 @@ from tournament_scheduler.models import (
 from tournament_scheduler.pools import assign_pools
 from tournament_scheduler.solver import solve
 from tournament_scheduler.validator import validate
-from tourneydesk.core.service import SolveOutcome
+from tourneydesk.core.service import SolveOutcome, solve_current
 from tourneydesk.explain.engine import explain_conflict
+from tourneydesk.providers.pydantic_ai import PydanticAIIntake
+from tourneydesk.session import SpecSession
 from tourneydesk.web.schedule_view import schedule_payload
 
 app = FastAPI(title="TourneyDesk Demo API", version="0.2.0", docs_url=None, redoc_url=None)
@@ -173,6 +179,85 @@ def _solve_and_shape(spec: TournamentSpec) -> dict[str, Any]:
         return payload
 
     return {"result": "inconclusive"}
+
+
+# ---------------------------------------------------------------------------
+# Conversational chat (Pydantic AI, GLM/GPT), additive to the LLM-free /solve.
+# ---------------------------------------------------------------------------
+
+# Render's free tier is a single instance that restarts on idle/deploy, so chat
+# state is deliberately in-memory and disposable: a bounded LRU keyed by a
+# server-minted session id. Losing it on restart is acceptable for a demo (the
+# client just gets a fresh session_id on its next call). The bound keeps a busy
+# day or an abuse spike from growing memory without limit. One intake per session
+# owns BOTH engines and a shared history, so switching models mid-chat continues
+# the same conversation.
+_CHAT_MAX_SESSIONS = 500
+_CHAT_IDLE_TTL_S = 3600  # evict a session after 1h with no activity
+
+
+class _ChatSessionStore:
+    """Bounded, idle-evicting map of session_id -> (PydanticAIIntake, last_seen)."""
+
+    def __init__(self, max_sessions: int, idle_ttl_s: float) -> None:
+        self._max = max_sessions
+        self._ttl = idle_ttl_s
+        self._items: OrderedDict[str, tuple[PydanticAIIntake, float]] = OrderedDict()
+
+    def _evict(self, now: float) -> None:
+        # Drop anything idle past the TTL, then trim to capacity (oldest first).
+        expired = [sid for sid, (_, seen) in self._items.items() if now - seen > self._ttl]
+        for sid in expired:
+            del self._items[sid]
+        while len(self._items) > self._max:
+            self._items.popitem(last=False)
+
+    def get_or_create(self, session_id: str | None) -> tuple[str, PydanticAIIntake]:
+        now = time.monotonic()
+        self._evict(now)
+        if session_id and session_id in self._items:
+            intake, _ = self._items[session_id]
+            self._items.move_to_end(session_id)
+            self._items[session_id] = (intake, now)
+            return session_id, intake
+        # Unknown or absent id -> mint a fresh session. (An expired/unknown id is
+        # treated as new rather than errored so the client never gets stuck.)
+        new_id = uuid.uuid4().hex
+        intake = PydanticAIIntake(SpecSession())
+        self._items[new_id] = (intake, now)
+        self._items.move_to_end(new_id)
+        return new_id, intake
+
+
+_CHAT_STORE = _ChatSessionStore(_CHAT_MAX_SESSIONS, _CHAT_IDLE_TTL_S)
+
+
+class ChatRequest(BaseModel):
+    session_id: str | None = None
+    message: str = Field(min_length=1, max_length=2000)
+    # Which engine to answer this message on. Default GLM (typically cheaper);
+    # GPT is opt-in via the frontend switcher. History is shared across a switch.
+    model: Literal["glm", "gpt"] = "glm"
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest) -> dict[str, Any]:
+    session_id, intake = _CHAT_STORE.get_or_create(req.session_id)
+
+    # Pydantic AI is async-native, so the model turn awaits directly on the event
+    # loop; only the (blocking) CP-SAT solve is offloaded to the shared
+    # single-worker executor so chat and /solve can't stack solves on free tier.
+    turn = await intake.send(req.message, model_key=req.model)
+
+    session = intake.session
+    rules = session.to_rules_json()
+    try:
+        outcome = await asyncio.get_running_loop().run_in_executor(_EXECUTOR, solve_current, session)
+        schedule = schedule_payload(outcome)
+    except Exception:  # noqa: BLE001 -- a solve hiccup must not sink the chat reply
+        schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
+
+    return {"session_id": session_id, "reply": turn.text, "rules": rules, "schedule": schedule}
 
 
 @app.get("/health")
