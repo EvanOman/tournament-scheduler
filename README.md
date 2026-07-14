@@ -1,118 +1,158 @@
 # Tournament Scheduler
 
-An OR-Tools CP-SAT scheduling engine for youth sports tournaments, built to prove the core thesis of a concierge scheduling service.
+A research implementation of constraint-based tournament scheduling with Google OR-Tools CP-SAT, a conversational intake layer, and a small web interface.
 
-## The Problem
+The core scheduler reads a declarative tournament spec, assigns teams to pools, solves the pool-play schedule, validates the result independently, and renders the schedule for review. The companion `tourneydesk` package explores the workflow around the solver: conversational intake, rule extraction, infeasibility explanation, and repair suggestions.
 
-Tournament directors spend 14-60+ hours manually building schedules for youth soccer tournaments. Existing software (GotSport, SportsEngine Tourney) provides drag-and-drop grids but no real constraint optimization. The professional-grade solvers (GotSport Pro with Gurobi) are locked behind enterprise paywalls. Directors are left hand-placing games while juggling dozens of overlapping constraints.
-
-## The Thesis
-
-A concierge scheduling service at $200-500/tournament for Tier 2 regional soccer (40-150 teams) is viable. The technical core is Google OR-Tools CP-SAT -- a free, open-source constraint solver that won all CP competition gold medals for five consecutive years. The AI opportunity is not in the solver (commodity) but in the surrounding workflow: LLM-powered intake (natural language to formal constraints) and schedule explanation.
-
-This repository is the MVP solver engine. It takes a declarative YAML spec describing a tournament and produces a valid, optimized schedule in seconds.
+The project is alpha-quality and built as an engineering prototype. Pool-play scheduling is implemented; bracket scheduling and full-tournament re-optimization are still future work.
 
 ## What It Does
 
-- **Constraint solver** using Google OR-Tools CP-SAT, handling the real constraints from youth soccer:
-  - Teams/divisions/age groups with field size requirements
-  - Field availability windows (per-field, per-day)
-  - Game durations + halftime + changeover buffers
-  - Minimum rest between games for player safety
-  - No team plays twice simultaneously
-  - Coach-coaching-multiple-teams conflicts
-  - Pool-play structure (serpentine seeding, round-robin within pools)
-  - Time and field preferences as weighted soft constraints
-  - Early/late game balance across teams
+- Solves pool-play tournament schedules with OR-Tools CP-SAT.
+- Represents tournament inputs as typed YAML/JSON specs.
+- Supports teams, divisions, field sizes, field availability windows, game durations, changeover buffers, minimum rest, coaching conflicts, pool structure, and weighted time/field preferences.
+- Validates generated schedules with an independent checker rather than relying only on solver feasibility.
+- Renders schedules as Markdown, standalone HTML, and web-app payloads.
+- Explains infeasible specs with a deterministic conflict extractor and an optional LLM explanation layer.
+- Includes a conversational intake service that turns tournament facts into structured scheduling rules.
+- Includes an eval corpus for testing intake behavior against synthetic briefs and golden specs.
 
-- **Declarative spec** (YAML/JSON) designed as a clean target for an LLM intake layer
+## Architecture
 
-- **Independent validation** that programmatically checks every hard constraint
+```text
+Tournament brief or YAML/JSON spec
+        |
+        v
+Conversational intake / spec loader
+        |
+        v
+TournamentSpec
+        |
+        v
+Pool assignment
+        |
+        v
+CP-SAT solver
+        |
+        v
+Independent validator
+        |
+        v
+Renderer / web API / conflict explanation
+```
 
-- **Human-readable output** as markdown tables and standalone HTML pages with per-field timelines and per-team itineraries
+The solver uses a decomposition pipeline:
+
+1. Pool assignment uses serpentine seeding and does not require the constraint solver.
+2. Pool-play scheduling maps round-robin games onto field/time slots with CP-SAT.
+3. Validation re-checks hard constraints against the produced schedule.
+4. Rendering and explanation code turn solver output into human-readable artifacts.
+
+## Components
+
+- `tournament_scheduler/`: core models, spec loading, pool assignment, CP-SAT solver, validation, rendering, and conflict extraction.
+- `tourneydesk/`: conversational intake service, provider adapters, web app backend, session state, and explanation engine.
+- `frontend/`: TypeScript/Vite single-page app for chat, rules, and schedule review.
+- `evals/`: synthetic intake briefs, golden specs, scoring, and runner.
+- `tests/`: unit and integration tests for solver behavior, validation, rendering, web flows, conflict explanation, and eval tooling.
+- `examples/`: generated tournament specs at small, medium, and large sizes.
+
+## Tech Stack
+
+- Python 3.12+
+- OR-Tools CP-SAT
+- Pydantic
+- FastAPI and Uvicorn
+- TypeScript and Vite
+- pytest, ruff, and ty
+- uv and just
 
 ## Quick Start
 
 ```bash
-# Install
 uv sync --dev
 
-# Generate example tournament fixtures
 uv run tournament-scheduler generate-fixtures
-
-# Solve a tournament
 uv run tournament-scheduler solve examples/small_tournament.yaml
-
-# Solve with HTML output
 uv run tournament-scheduler solve examples/small_tournament.yaml --format html
 
-# Run tests
 just test
 ```
 
-## Architecture
+The solver writes schedule output next to the input file unless an explicit `--output` path is provided.
 
-```
-TournamentSpec (YAML/JSON)
-    |
-    v
-Pool Assignment (serpentine seeding)
-    |
-    v
-CP-SAT Solver (hard + soft constraints)
-    |
-    v
-Validation (independent constraint checking)
-    |
-    v
-Renderer (markdown / HTML)
+## Web App
+
+Run the local web app with the offline provider:
+
+```bash
+just serve --provider fake
 ```
 
-The solver follows a decomposition pipeline recommended by the OR literature:
-1. **Phase 0 -- Pool Assignment**: Assign teams to pools using serpentine seeding (simple heuristic, no solver needed)
-2. **Phase 1 -- Pool Play Scheduling**: Schedule all round-robin games within pools onto fields and time slots (CP-SAT)
-3. **Phase 2 -- Bracket Scheduling**: (Not yet implemented) Schedule elimination bracket games
-4. **Phase 3 -- Global Optimization**: (Not yet implemented) Re-optimize the full schedule jointly
+By default, the server binds to `127.0.0.1:18780` and automatically chooses the next open port if that port is busy. The app serves the SPA, REST endpoints, and WebSocket session flow from the same FastAPI process.
 
-## Test Fixtures
+For provider-backed intake, set the relevant provider configuration and run:
 
-Three realistic synthetic tournaments at increasing scale:
+```bash
+just serve --provider api
+```
 
-| Fixture | Teams | Divisions | Fields | Format | Expected Games |
-|---------|-------|-----------|--------|--------|---------------|
-| Small   | 24    | 3         | 4      | Single day (Sat) | 36 |
-| Medium  | 48    | 5         | 6      | Weekend (Sat+Sun) | 72 |
-| Large   | 96    | 8         | 10     | Weekend (Sat+Sun) | 144 |
+## Evals
 
-## What's Proven
+Run the full synthetic intake corpus:
 
-- CP-SAT solves realistic youth tournament instances (24-96 teams) with full constraint satisfaction
-- All hard constraints are verified by an independent validator
-- Schedule quality is measurable via the weighted objective function
-- The declarative spec format is clean enough for LLM intake targeting
+```bash
+just eval --provider fake
+```
 
-## What's Next
+Run a subset by ID:
 
-1. **Design partner validation**: Take the solver output to the design partner (an experienced tournament director) and compare against their manually-built schedules
-2. **LLM intake layer**: Wire up the `IntakeProvider` interface to parse natural language tournament descriptions into the spec format
-3. **Bracket scheduling**: Add single-elimination bracket support after pool play
-4. **Schedule explanation**: Generate natural-language explanations of scheduling decisions
-5. **Incremental re-scheduling**: Handle real-time changes (team drops, weather delays) without full re-solve
-6. **GotSport export**: Output in a format importable by GotSport
+```bash
+just eval --provider fake --ids b01_clean_small
+```
 
-## Research Foundation
-
-This project is grounded in 9 deep-research reports covering market analysis, competitive landscape, technical approach, and go-to-market strategy. Key references:
-
-- **Solver**: Google OR-Tools CP-SAT (Apache 2.0, gold medalist in CP competitions for 5 years)
-- **Problem class**: NP-hard in general form, but practical instances (16-200 teams) are well within CP-SAT capability
-- **Architecture**: Decomposition pipeline (pool assignment -> pool scheduling -> bracket scheduling -> global optimization)
-- **Performance targets**: <5s for 16 teams, <30s for 48 teams, <5min for 128 teams
+The eval runner compares generated specs against golden specs and records structured scoring output.
 
 ## Development
 
 ```bash
-just check    # lint + format + typecheck + test
-just fix      # auto-fix lint/format issues
-just fc       # fix then check
+just check        # lint, format check, typecheck, tests, frontend typecheck/build
+just fix          # ruff autofix + format
+just fc           # fix, then check
+just test         # Python tests
+just frontend-check
 ```
+
+The frontend can also be checked directly:
+
+```bash
+cd frontend
+npm install
+npm run typecheck
+npm run build
+```
+
+## Example Fixtures
+
+| Fixture | Teams | Divisions | Fields | Format | Expected games |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Small | 24 | 3 | 4 | Single day | 36 |
+| Medium | 48 | 5 | 6 | Weekend | 72 |
+| Large | 96 | 8 | 10 | Weekend | 144 |
+
+## Current Status
+
+Implemented:
+
+- Pool-play scheduling for synthetic tournament specs.
+- Hard-constraint validation after solve.
+- Markdown, HTML, and web schedule rendering.
+- Conversational rule intake with fake and provider-backed adapters.
+- Infeasibility extraction and explanation.
+- Eval fixtures for common intake cases, missing information, contradictory constraints, and adversarial prompts.
+
+Not implemented yet:
+
+- Bracket scheduling after pool play.
+- Joint re-optimization across pool and bracket phases.
+- Import/export adapters for external tournament systems.
