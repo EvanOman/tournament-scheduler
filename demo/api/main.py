@@ -14,9 +14,13 @@ Deployed on Render free tier; the site proxies /api/tourneydesk/* to it
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
+import logging
 import time
 import uuid
 from collections import OrderedDict
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime
@@ -24,6 +28,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from tournament_scheduler.conflict import extract_conflict
@@ -44,6 +49,8 @@ from tourneydesk.explain.engine import explain_conflict
 from tourneydesk.providers.pydantic_ai import PydanticAIIntake
 from tourneydesk.session import SpecSession
 from tourneydesk.web.schedule_view import schedule_payload
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TourneyDesk Demo API", version="0.2.0", docs_url=None, redoc_url=None)
 
@@ -258,6 +265,91 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
         schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
 
     return {"session_id": session_id, "reply": turn.text, "rules": rules, "schedule": schedule}
+
+
+def _sse_frame(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest) -> StreamingResponse:
+    """SSE variant of ``/chat``: same request, but progress + token deltas land
+    on the wire as the 20-40s turn happens instead of all at once at the end.
+
+    Frozen contract (a second team builds the frontend against this exactly):
+    zero or more ``status`` events (one per successful spec mutation, using the
+    same dispatch echo text `/chat` folds into ``reply``, plus one "Solving your
+    schedule..." right before the solve), then zero or more ``delta`` events
+    (assistant reply token deltas), then exactly one terminal event -- ``final``
+    on success or ``error`` on failure. See docs/DECISIONS.md D30.
+
+    Bridge pattern: the turn runs as a task on the event loop; its callbacks --
+    which Pydantic AI fires from a worker thread for tool calls (`on_progress`)
+    and from the event loop for text deltas (`on_text_delta`) -- both hop onto
+    the loop via `call_soon_threadsafe` into a queue, uniformly, since it is
+    safe from either caller. The generator below drains that queue into SSE
+    frames until a `None` sentinel closes the stream.
+    """
+    session_id, intake = _CHAT_STORE.get_or_create(req.session_id)
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
+
+    def emit(event: str, data: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, (event, data))
+
+    def on_progress(text: str) -> None:
+        emit("status", {"text": text})
+
+    def on_text_delta(text: str) -> None:
+        emit("delta", {"text": text})
+
+    async def run_turn() -> None:
+        try:
+            turn = await intake.send(
+                req.message,
+                on_text_delta=on_text_delta,
+                model_key=req.model,
+                on_progress=on_progress,
+            )
+
+            session = intake.session
+            rules = session.to_rules_json()
+            emit("status", {"text": "Solving your schedule…"})
+            try:
+                outcome = await loop.run_in_executor(_EXECUTOR, solve_current, session)
+                schedule = schedule_payload(outcome)
+            except Exception:  # noqa: BLE001 -- a solve hiccup must not sink the chat reply
+                schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
+
+            emit("final", {"session_id": session_id, "reply": turn.text, "rules": rules, "schedule": schedule})
+        except Exception:  # noqa: BLE001 -- any turn failure ends the stream with an error event, not a hang/500
+            logger.exception("chat_stream turn failed")
+            emit(
+                "error",
+                {"message": "Something went wrong handling that message. Your draft is safe — please send it again."},
+            )
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    task = asyncio.create_task(run_turn())
+
+    async def event_gen() -> AsyncIterator[str]:
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                event, data = item
+                yield _sse_frame(event, data)
+        finally:
+            # Surface a bug in run_turn itself (outside its own try/except) as a
+            # log entry rather than a silently swallowed task exception.
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(Exception):
+                await task
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")

@@ -197,3 +197,44 @@ TOURNEYDESK_PROVIDER=api. Key scrubbed from the process env on provider construc
 ClaudeAgentOptions.env merges, so popping the parent env is the only reliable scrub);
 setting_sources=[] so local CLAUDE.md never leaks into product turns; tools=[] +
 allowed_tools=["mcp__spec__*"] restricts the agent to the 19 spec tools.
+
+## D30 — `/chat/stream` SSE: additive, frozen event contract, no new dependency
+The demo's 20-40s turn was completely silent (one dict back after the whole agentic loop + a
+CP-SAT solve). Added `POST /chat/stream`, additive next to the untouched `/chat`, so a second
+team could build the frontend against a contract fixed in advance rather than against a moving
+target. Frames are hand-formatted (`"event: <name>\ndata: <single-line JSON>\n\n"`) — no
+`sse-starlette` dependency; FastAPI's `StreamingResponse` over an async generator is enough.
+
+Event contract: zero or more `status` (one per successful spec mutation, reusing the existing
+`dispatch()` echo text `PydanticAIIntake` already produced for `/chat`'s `reply`, plus one
+"Solving your schedule…" immediately before the solve step), then zero or more `delta` (true
+assistant-reply token chunks), then exactly one terminal frame — `final` (mirrors `/chat`'s
+`{session_id, reply, rules, schedule}` body) on success, or `error` on failure. Note the
+"Solving…" status is emitted AFTER the delta events, not grouped with the mutation statuses
+before them — it fires once the turn (tool calls + assistant reply) is fully done, which is also
+when the solve becomes safe to run under the same crash-proofing boundary `/chat` already has (a
+solve exception falls back to an `{status: "incomplete"}` schedule instead of an `error` frame).
+
+Provider (`PydanticAIIntake.send`): added a keyword-only `on_progress` callback, fired alongside
+the existing `on_spec_mutated` in `_make_tool_fn`'s success-mutation branch (same
+`_Deps`-threaded plumbing). When a caller passes `on_text_delta`, `send` now runs
+`Agent.run_stream(...)` + `stream_text(delta=True, debounce_by=None)` for real token deltas of
+the FINAL text instead of `Agent.run(...)`'s single full-text callback; `run_stream` still
+executes the complete tool loop first (same `deps`, same `dispatch()`), so tool-call semantics
+are identical to the non-streaming path. When `on_text_delta` is `None` (i.e. `/chat`), `send`
+takes the original `Agent.run()` branch UNCHANGED — `/chat`'s behavior and tests are untouched.
+
+Threading: Pydantic AI runs sync tool functions (`_make_tool_fn`'s `fn`) via `anyio.to_thread`,
+a real worker thread — confirmed by reading `_function_schema.py`'s `FunctionSchema.call`. So
+`on_progress` fires off the event loop thread and MUST hop back via
+`loop.call_soon_threadsafe(queue.put_nowait, ...)`; `on_text_delta`, by contrast, fires from
+`stream_text`'s async iteration on the event loop itself. The endpoint uses
+`call_soon_threadsafe` uniformly for both — it is safe (if slightly redundant) when already on
+the loop, and it means one `emit()` helper instead of two threading-aware code paths.
+
+Rejected: computing/solving concurrently with the reply-text stream (kicking off `solve_current`
+as soon as the last tool call lands, since the session is already mutated by then) — it would
+let the "Solving…" status arrive before the deltas, matching the contract's listed event order
+more literally, but it doubles the in-flight work per chat turn on a single-worker `_EXECUTOR`
+sized for a free-tier demo instance, for no user-visible benefit over the simpler sequential
+bridge.

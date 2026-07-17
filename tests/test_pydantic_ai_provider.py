@@ -9,13 +9,15 @@ offline coverage).
 
 from __future__ import annotations
 
+import json
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from tourneydesk.providers.pydantic_ai import PydanticAIIntake
@@ -183,6 +185,143 @@ def test_testmodel_smoke_exercises_all_tools() -> None:
 
     turn = asyncio.run(intake.send("anything"))
     assert isinstance(turn.text, str)  # no crash; all 19 tools dispatched
+
+
+# --- streaming (on_text_delta / on_progress) -------------------------------
+#
+# `Agent.run_stream` calls a `FunctionModel`'s `stream_function` (not
+# `function`) for EVERY graph iteration, including the tool-calling ones -- so
+# unlike `_full_spec_model` above, this scripted model must speak in
+# `DeltaToolCall`s for its first turn and plain `str` chunks for its second.
+
+_REPLY_CHUNKS = ["All set", " — Open division,", " four teams,", " on Field 1."]
+
+
+def _streaming_full_spec_model() -> FunctionModel:
+    calls = {"n": 0}
+
+    async def behaviour(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            yield {
+                0: DeltaToolCall(
+                    name="add_division",
+                    json_args=json.dumps(
+                        {
+                            "id": "d1",
+                            "name": "Open",
+                            "field_size": "full",
+                            "game_duration_minutes": 40,
+                            "games_per_team": 1,
+                            "source_quote": "an Open division",
+                        }
+                    ),
+                ),
+                1: DeltaToolCall(
+                    name="set_team_count",
+                    json_args=json.dumps({"division_id": "d1", "count": 4, "source_quote": "four teams"}),
+                ),
+                2: DeltaToolCall(
+                    name="add_field",
+                    json_args=json.dumps(
+                        {
+                            "id": "f1",
+                            "name": "Field 1",
+                            "size": "full",
+                            "availability": [{"start": "2027-06-12T09:00", "end": "2027-06-12T17:00"}],
+                            "source_quote": "one field all Saturday",
+                        }
+                    ),
+                ),
+            }
+        else:
+            for chunk in _REPLY_CHUNKS:
+                yield chunk
+
+    return FunctionModel(stream_function=behaviour)
+
+
+def test_streaming_dispatches_tools_and_streams_true_deltas() -> None:
+    session = SpecSession()
+    deltas: list[str] = []
+    progress: list[str] = []
+    mutated: list[int] = []
+    intake = PydanticAIIntake(session, models={"glm": _streaming_full_spec_model()})
+
+    import asyncio
+
+    turn = asyncio.run(
+        intake.send(
+            "Open, four teams, one field.",
+            on_text_delta=deltas.append,
+            on_spec_mutated=lambda: mutated.append(1),
+            on_progress=progress.append,
+        )
+    )
+
+    # Real token deltas: more than one chunk, and they concatenate to the text.
+    assert len(deltas) > 1
+    assert "".join(deltas) == turn.text
+    assert turn.text.startswith("All set")
+
+    # Tool calls still dispatched through the same `deps`/`dispatch` path.
+    assert {c["name"] for c in turn.tool_calls} == {"add_division", "set_team_count", "add_field"}
+    assert "d1" in session.divisions
+    assert len([t for t in session.teams.values() if t.division_id == "d1"]) == 4
+    assert "f1" in session.fields
+
+    # `on_progress` fires with the same dispatch echoes `on_spec_mutated` fires for.
+    assert progress == turn.echoes
+    assert progress  # non-empty: at least one successful mutation
+    assert mutated
+
+    # History persisted for the next turn (either engine).
+    assert intake._history
+
+
+def test_streaming_history_persists_across_turns() -> None:
+    """A second streamed turn sees the first turn's history."""
+    session = SpecSession()
+    seen_history_len: list[int] = []
+
+    async def second_turn_behaviour(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+        seen_history_len.append(len(messages))
+        yield "Continuing the conversation."
+
+    intake = PydanticAIIntake(
+        session,
+        models={"glm": _streaming_full_spec_model(), "gpt": FunctionModel(stream_function=second_turn_behaviour)},
+    )
+
+    import asyncio
+
+    deltas1: list[str] = []
+    asyncio.run(intake.send("build it", on_text_delta=deltas1.append, model_key="glm"))
+
+    deltas2: list[str] = []
+    turn2 = asyncio.run(intake.send("now on gpt", on_text_delta=deltas2.append, model_key="gpt"))
+
+    assert turn2.text == "Continuing the conversation."
+    assert seen_history_len and seen_history_len[0] > 1  # saw the accumulated conversation
+
+
+def test_streaming_api_error_is_friendly() -> None:
+    async def boom_stream(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+        if False:  # pragma: no cover -- keeps this an async generator function
+            yield ""
+        raise RuntimeError("upstream 500")
+
+    session = SpecSession()
+    intake = PydanticAIIntake(session, models={"glm": FunctionModel(stream_function=boom_stream)})
+
+    import asyncio
+
+    deltas: list[str] = []
+    turn = asyncio.run(intake.send("Open division", on_text_delta=deltas.append))
+
+    assert "problem reaching the AI service" in turn.text
+    assert deltas and "problem reaching the AI service" in deltas[0]
+    assert intake._history == []  # failed streamed turn doesn't corrupt history
 
 
 # --- /chat endpoint -------------------------------------------------------

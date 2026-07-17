@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,6 +65,7 @@ class _Deps:
 
     session: SpecSession
     on_spec_mutated: SpecMutated | None = None
+    on_progress: Callable[[str], None] | None = None
     echoes: list[str] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     complete: bool = False
@@ -88,6 +90,8 @@ def _make_tool_fn(name: str) -> Any:
             deps.echoes.append(result.content)
             if deps.on_spec_mutated is not None:
                 deps.on_spec_mutated()
+            if deps.on_progress is not None:
+                deps.on_progress(result.content)
         if name == "mark_intake_complete" and not result.is_error:
             deps.complete = True
         return result.content
@@ -181,6 +185,7 @@ class PydanticAIIntake:
         on_spec_mutated: SpecMutated | None = None,
         *,
         model_key: str = "glm",
+        on_progress: Callable[[str], None] | None = None,
     ) -> AgentTurn:
         engine = model_key if model_key in ("glm", "gpt") else "glm"
         model = self._model_for(engine)
@@ -189,34 +194,69 @@ class PydanticAIIntake:
             _stream(text, on_text_delta)
             return AgentTurn(text=text, tool_calls=[], echoes=[], complete=False)
 
-        deps = _Deps(session=self.session, on_spec_mutated=on_spec_mutated)
+        deps = _Deps(session=self.session, on_spec_mutated=on_spec_mutated, on_progress=on_progress)
+
+        if on_text_delta is None:
+            # No sink -> unchanged non-streaming path (byte-for-byte with the
+            # pre-streaming behaviour): the demo's plain-request /chat lives here.
+            try:
+                result = await _AGENT.run(
+                    director_message,
+                    model=model,
+                    message_history=self._history or None,
+                    deps=deps,
+                )
+            except Exception:  # noqa: BLE001 -- any model/transport error is user-facing, not fatal
+                logger.exception("Pydantic AI run failed on engine=%s", engine)
+                text = _FRIENDLY_API_ERROR
+                _stream(text, on_text_delta)
+                return AgentTurn(text=text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=False)
+
+            # Persist the full history (incl. this turn) so the NEXT turn -- on
+            # either engine -- continues the same conversation.
+            self._history = list(result.all_messages())
+            final_text = result.output if isinstance(result.output, str) else str(result.output)
+            _stream(final_text, on_text_delta)
+            return AgentTurn(text=final_text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=deps.complete)
+
+        # A sink was given -> stream real token deltas of the FINAL assistant
+        # text via `run_stream` + `stream_text(delta=True)`. `run_stream` runs
+        # the full agent graph -- all tool calls dispatch exactly as in the
+        # non-streaming path above, through the same `deps` -- up to the first
+        # text output (see its docstring), so this mirrors `run()` except for
+        # how the final text arrives.
         try:
-            result = await _AGENT.run(
+            async with _AGENT.run_stream(
                 director_message,
                 model=model,
                 message_history=self._history or None,
                 deps=deps,
-            )
+            ) as result:
+                async for chunk in result.stream_text(delta=True, debounce_by=None):
+                    if chunk:
+                        on_text_delta(chunk)
+                final_output = await result.get_output()
+                history = list(result.all_messages())
         except Exception:  # noqa: BLE001 -- any model/transport error is user-facing, not fatal
-            logger.exception("Pydantic AI run failed on engine=%s", engine)
+            logger.exception("Pydantic AI run_stream failed on engine=%s", engine)
             text = _FRIENDLY_API_ERROR
             _stream(text, on_text_delta)
             return AgentTurn(text=text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=False)
 
-        # Persist the full history (incl. this turn) so the NEXT turn -- on either
-        # engine -- continues the same conversation.
-        self._history = list(result.all_messages())
-        final_text = result.output if isinstance(result.output, str) else str(result.output)
-        _stream(final_text, on_text_delta)
+        self._history = history
+        final_text = final_output if isinstance(final_output, str) else str(final_output)
         return AgentTurn(text=final_text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=deps.complete)
 
 
 def _stream(text: str, on_text_delta: TextDelta | None) -> None:
-    """Emit the final text to a streaming sink, if one was provided.
+    """Push one whole-text chunk to a streaming sink, if one was provided.
 
-    The demo /chat endpoint uses plain request/response and passes no sink, so
-    this is a no-op there. Runs non-streaming; a future WS surface could switch
-    to ``Agent.run_stream`` for true token deltas.
+    Used for the no-key and API-error fallbacks on BOTH the plain and
+    streaming paths of ``send`` -- those replies are short, fixed strings with
+    nothing to meaningfully token-stream, so they go out as a single chunk even
+    when a sink is present. The `/chat` endpoint passes no sink, so this is a
+    no-op there. True token deltas for a real reply go through
+    ``Agent.run_stream`` in ``send`` itself, not through this helper.
     """
     if on_text_delta is None or not text:
         return
