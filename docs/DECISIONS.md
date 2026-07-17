@@ -238,3 +238,13 @@ let the "Solving…" status arrive before the deltas, matching the contract's li
 more literally, but it doubles the in-flight work per chat turn on a single-worker `_EXECUTOR`
 sized for a free-tier demo instance, for no user-visible benefit over the simpler sequential
 bridge.
+
+## D31 — Modal memory snapshots for the demo app (2026-07-17)
+
+`deploy/modal_app.py` sets `enable_memory_snapshot=True`: scale-from-zero restores from a
+memory snapshot instead of re-importing Python, cutting measured cold starts from ~8-12 s to
+a couple of seconds (the linprogx demo made the same change: 21.7 s → ~6 s worst case).
+Snapshot-safety was verified before enabling: the module-level pydantic-ai `_AGENT` binds no
+model, and `OpenAIProvider` HTTP clients + API keys are constructed lazily per run
+(`_build_model`), so nothing holds a socket across the snapshot. The first wake after each
+deploy is the snapshot-creating boot (still slow); every later wake restores.
