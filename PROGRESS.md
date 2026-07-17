@@ -136,3 +136,12 @@ scheduling product on top of the existing CP-SAT solver).
   source-quote refresh after corrections; (5) agent re-litigates already-stated constraints
   before resolving them (P4 r6, low); (6) M7 brackets + explanation bundle; (7) full 15-brief
   live eval sweep on the subscription provider + trend doc; (8) M8 polish + v0.2.0 tag.
+
+### Public demo: full response streaming shipped — 2026-07-16
+
+- **`POST /chat/stream` (SSE) live on Modal + evanoman.com** (D30): tool-loop progress events
+  (per-mutation dispatch echoes + "Solving your schedule…"), true token deltas via Pydantic AI
+  `run_stream`, terminal `final`/`error` frames. `/chat` unchanged (rollback path). Edge
+  rate-limit gate covers the new route. Frontend consumes the stream (progress line → streaming
+  text), switcher relabeled with GPT-5.6 · fast as the new-user default. Gate: 288 passed;
+  site e2e 813 passed. Verified live end to end (timed SSE through the proxy + browser turn).
