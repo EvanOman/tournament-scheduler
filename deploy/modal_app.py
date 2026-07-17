@@ -43,6 +43,11 @@ app = modal.App("tourneydesk-demo")
     secrets=[modal.Secret.from_name("tourneydesk")],
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
     scaledown_window=300,  # keep a warm container ~5 min after last request
+    # Restore from a memory snapshot on scale-from-zero instead of re-importing
+    # Python (~8-9 s measured) — restores land in a couple of seconds. Snapshot-
+    # safe: the module-level pydantic-ai Agent holds no model; OpenAIProvider
+    # HTTP clients and API keys are constructed lazily per run.
+    enable_memory_snapshot=True,
     cpu=1.0,  # headroom for CP-SAT solves (sub-second at demo scale)
     memory=1024,
     timeout=90,
