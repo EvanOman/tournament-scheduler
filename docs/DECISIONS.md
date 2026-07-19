@@ -252,12 +252,14 @@ deploy is the snapshot-creating boot (still slow); every later wake restores.
 ## D32 — Scheduled warm window for the Modal demo (2026-07-18)
 
 Two cron functions in `deploy/modal_app.py` bound the demo's cold-start exposure without
-paying for 24/7 warmth: `keep_warm` (hourly 8:00-21:00 America/Chicago) sets
-`min_containers=1` via `update_autoscaler()`, `wind_down` (22:00) sets it back to 0. A warm
-1-CPU/1-GiB container reserves ~$0.055/h (Modal pricing 2026-07), so the 14 h/day window is
-~$23/month nominal — inside the Starter plan's $30/month credits, where always-warm
-(~$40/month) is not. keep_warm re-asserts hourly rather than once because a redeploy resets
-the autoscaler to the decorator's `min_containers=0`; the hourly tick self-heals within the
-hour. Off-window visitors get the ~10 s snapshot cold start, usually hidden by the site's
-warm-on-load pings. Rejected: 24/7 `min_containers=1` (cost) and slimming the image
-(marginal — the restore is dominated by ortools + pydantic-ai regardless).
+paying for 24/7 warmth: `keep_warm` (hourly, weekdays 8:00-19:00 America/Chicago) sets
+`min_containers=1` via `update_autoscaler()`, `wind_down` (weekdays 20:00) sets it back
+to 0. The window covers US business hours — 9am Eastern through 6pm Pacific, Mon-Fri. A
+warm 1-CPU/1-GiB container reserves ~$0.055/h (Modal pricing 2026-07), so the ~60 h/week
+window is ~$14/month nominal — comfortably inside the Starter plan's $30/month credits,
+where always-warm (~$40/month) is not. keep_warm re-asserts hourly rather than once
+because a redeploy resets the autoscaler to the decorator's `min_containers=0`; the hourly
+tick self-heals within the hour. Off-window visitors (nights/weekends) get the ~8-10 s
+snapshot cold start, usually hidden by the site's warm-on-load pings — an accepted worst
+case. Rejected: 24/7 `min_containers=1` (cost) and slimming the image (marginal — the
+restore is dominated by ortools + pydantic-ai regardless).
