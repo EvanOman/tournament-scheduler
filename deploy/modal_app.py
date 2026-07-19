@@ -64,13 +64,14 @@ def fastapi_app():
 
 
 # --- Scheduled warm window ---------------------------------------------------
-# min_containers=1 during waking hours (8:00-22:00 Central), scale-to-zero
-# overnight. A warm 1-CPU/1-GiB container reserves ~$0.055/h (Modal pricing,
-# 2026-07: $0.0000131/core/s + $0.00000222/GiB/s), so the 14 h/day window is
-# ~$23/month nominal — inside the Starter plan's $30/month free credits, where
-# 24/7 always-warm (~$40/month) would not be. Off-window visitors still get
-# the ~10 s snapshot cold start, usually hidden by the site's warm-on-load
-# pings.
+# min_containers=1 during US business hours — weekdays 8:00-20:00 Central,
+# covering 9am Eastern through 6pm Pacific — scale-to-zero otherwise. A warm
+# 1-CPU/1-GiB container reserves ~$0.055/h (Modal pricing, 2026-07:
+# $0.0000131/core/s + $0.00000222/GiB/s), so the ~60 h/week window is
+# ~$14/month nominal — comfortably inside the Starter plan's $30/month free
+# credits, where 24/7 always-warm (~$40/month) would not be. Off-window
+# visitors get the ~8-10 s snapshot cold start, usually hidden by the site's
+# warm-on-load pings — an acceptable worst case for nights and weekends.
 #
 # keep_warm re-asserts HOURLY (not once at 8:00) because a redeploy resets the
 # autoscaler to the decorator's min_containers=0 — the hourly tick self-heals
@@ -81,7 +82,7 @@ _CRON_IMAGE = modal.Image.debian_slim(python_version="3.13")
 
 @app.function(
     image=_CRON_IMAGE,
-    schedule=modal.Cron("0 8-21 * * *", timezone="America/Chicago"),
+    schedule=modal.Cron("0 8-19 * * 1-5", timezone="America/Chicago"),
 )
 def keep_warm() -> None:
     modal.Function.from_name("tourneydesk-demo", "fastapi_app").update_autoscaler(min_containers=1)
@@ -89,7 +90,7 @@ def keep_warm() -> None:
 
 @app.function(
     image=_CRON_IMAGE,
-    schedule=modal.Cron("0 22 * * *", timezone="America/Chicago"),
+    schedule=modal.Cron("0 20 * * 1-5", timezone="America/Chicago"),
 )
 def wind_down() -> None:
     modal.Function.from_name("tourneydesk-demo", "fastapi_app").update_autoscaler(min_containers=0)
