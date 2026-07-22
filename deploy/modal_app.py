@@ -18,7 +18,7 @@ container around briefly after traffic so bursts don't each cold-start.
 
 from __future__ import annotations
 
-import modal  # ty: ignore[unresolved-import] -- optional deploy-only dependency
+import modal
 
 # Runtime deps pinned to the repo's locked versions (parity with the tested
 # code). The three first-party packages are baked in from local source.
