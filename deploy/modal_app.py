@@ -5,7 +5,7 @@ that Render ran, but on Modal: fast container starts (seconds, not the 30-60s of
 a Render free instance) and scale-to-zero so idle cost is ~nothing. The public
 site's Cloudflare Pages proxy points its origin here.
 
-Deploy:  uv run modal deploy deploy/modal_app.py
+Deploy:  uv run --with modal --no-project modal deploy deploy/modal_app.py
 Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
          GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS (and DEMO_SHARED_SECRET if the
          proxy is configured to require it).
@@ -18,7 +18,7 @@ container around briefly after traffic so bursts don't each cold-start.
 
 from __future__ import annotations
 
-import modal
+import modal  # ty: ignore[unresolved-import] -- optional deploy-only dependency
 
 # Runtime deps pinned to the repo's locked versions (parity with the tested
 # code). The three first-party packages are baked in from local source.
@@ -44,9 +44,9 @@ app = modal.App("tourneydesk-demo")
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
     scaledown_window=300,  # keep a warm container ~5 min after last request
     # Restore from a memory snapshot on scale-from-zero instead of re-importing
-    # Python (~8-9 s measured) — restores land in a couple of seconds. Snapshot-
-    # safe: the module-level pydantic-ai Agent holds no model; OpenAIProvider
-    # HTTP clients and API keys are constructed lazily per run.
+    # Python (~8-9 s measured) — restores land in a couple of seconds. The LLM
+    # stack is not loaded into the snapshot; the first chat request imports it,
+    # and OpenAIProvider clients and API keys are constructed lazily per run.
     enable_memory_snapshot=True,
     cpu=1.0,  # headroom for CP-SAT solves (sub-second at demo scale)
     memory=1024,
@@ -64,25 +64,26 @@ def fastapi_app():
 
 
 # --- Scheduled warm window ---------------------------------------------------
-# min_containers=1 during US business hours — weekdays 8:00-20:00 Central,
-# covering 9am Eastern through 6pm Pacific — scale-to-zero otherwise. A warm
+# min_containers=1 weekdays 8:00-23:00 Central, covering US business hours and
+# the personal site's observed evening traffic — scale-to-zero otherwise. A warm
 # 1-CPU/1-GiB container reserves ~$0.055/h (Modal pricing, 2026-07:
-# $0.0000131/core/s + $0.00000222/GiB/s), so the ~60 h/week window is
-# ~$14/month nominal — comfortably inside the Starter plan's $30/month free
+# $0.0000131/core/s + $0.00000222/GiB/s), so the ~75 h/week window is
+# ~$18/month nominal — comfortably inside the Starter plan's $30/month free
 # credits, where 24/7 always-warm (~$40/month) would not be. Off-window
 # visitors get the ~8-10 s snapshot cold start, usually hidden by the site's
-# warm-on-load pings — an acceptable worst case for nights and weekends.
+# intent-based warmup pings — an acceptable worst case for late nights and weekends.
 #
-# keep_warm re-asserts HOURLY (not once at 8:00) because a redeploy resets the
-# autoscaler to the decorator's min_containers=0 — the hourly tick self-heals
-# that within the hour. Tune the window by editing the two Cron expressions.
+# keep_warm re-asserts every 15 minutes because a redeploy resets the autoscaler
+# to the decorator's min_containers=0. The short cadence also covers redeploys
+# during the final 22:00 hour instead of missing the last hourly tick. Tune the
+# window by editing the two Cron expressions.
 
 _CRON_IMAGE = modal.Image.debian_slim(python_version="3.13")
 
 
 @app.function(
     image=_CRON_IMAGE,
-    schedule=modal.Cron("0 8-19 * * 1-5", timezone="America/Chicago"),
+    schedule=modal.Cron("*/15 8-22 * * 1-5", timezone="America/Chicago"),
 )
 def keep_warm() -> None:
     modal.Function.from_name("tourneydesk-demo", "fastapi_app").update_autoscaler(min_containers=1)
@@ -90,7 +91,7 @@ def keep_warm() -> None:
 
 @app.function(
     image=_CRON_IMAGE,
-    schedule=modal.Cron("0 20 * * 1-5", timezone="America/Chicago"),
+    schedule=modal.Cron("0 23 * * 1-5", timezone="America/Chicago"),
 )
 def wind_down() -> None:
     modal.Function.from_name("tourneydesk-demo", "fastapi_app").update_autoscaler(min_containers=0)

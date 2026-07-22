@@ -263,3 +263,24 @@ tick self-heals within the hour. Off-window visitors (nights/weekends) get the ~
 snapshot cold start, usually hidden by the site's warm-on-load pings — an accepted worst
 case. Rejected: 24/7 `min_containers=1` (cost) and slimming the image (marginal — the
 restore is dominated by ortools + pydantic-ai regardless).
+
+## D33 — Extend evening warmth and defer LLM provider imports (2026-07-21)
+
+Production traces recorded a TourneyDesk health warmup at 21:52 America/Chicago taking
+7.97 seconds, after D32's 20:00 wind-down. The weekday warm window now runs 8:00-23:00:
+`keep_warm` re-asserts every 15 minutes through 22:45 and `wind_down` runs at 23:00.
+The shorter reconciliation cadence bounds deploy-induced cold gaps during the final hour
+without adding reserved container time. The longer window adds 15 container-hours/week
+(about $3.50/month at the D32 rates), bringing the nominal total to roughly $18/month
+while retaining scale-to-zero overnight and on weekends.
+
+The demo API also no longer imports Anthropic or Pydantic AI on its health and ordinary
+solver startup paths. Provider package exports remain compatible through a lazy
+`ClaudeIntake` attribute; web package exports no longer initialize the provider stack as a
+side effect of importing a lightweight web helper; the chat adapter loads when the first
+chat session is created; and conflict-explanation code loads only for an infeasible solve,
+with the Anthropic SDK
+itself deferred until the explicitly requested LLM explanation path. This preserves chat
+and deterministic explanation behavior while reducing snapshot creation and fallback cold
+starts. Rejected: permanent warm capacity, which still exceeds the personal-demo need and
+the Starter credit envelope.
