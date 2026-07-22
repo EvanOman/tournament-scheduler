@@ -24,7 +24,7 @@ from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,10 +45,11 @@ from tournament_scheduler.pools import assign_pools
 from tournament_scheduler.solver import solve
 from tournament_scheduler.validator import validate
 from tourneydesk.core.service import SolveOutcome, solve_current
-from tourneydesk.explain.engine import explain_conflict
-from tourneydesk.providers.pydantic_ai import PydanticAIIntake
 from tourneydesk.session import SpecSession
 from tourneydesk.web.schedule_view import schedule_payload
+
+if TYPE_CHECKING:
+    from tourneydesk.providers.pydantic_ai import PydanticAIIntake
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,10 @@ def _solve_and_shape(spec: TournamentSpec) -> dict[str, Any]:
         conflict = extract_conflict(spec, pools, time_limit_s=_SOLVE_SECONDS)
         payload: dict[str, Any] = {"result": "infeasible", "explanation": None}
         if conflict is not None:
+            # The deterministic path does not need an LLM provider. Import the
+            # explanation stack only for the uncommon infeasible solve.
+            from tourneydesk.explain.engine import explain_conflict
+
             explanation = explain_conflict(spec, conflict, use_llm=False)
             payload["explanation"] = explanation.model_dump(mode="json")
         return payload
@@ -230,6 +235,10 @@ class _ChatSessionStore:
         # Unknown or absent id -> mint a fresh session. (An expired/unknown id is
         # treated as new rather than errored so the client never gets stuck.)
         new_id = uuid.uuid4().hex
+        # Keep Pydantic AI and its provider adapters off the health/solver cold
+        # path. The first chat session is the first request that needs them.
+        from tourneydesk.providers.pydantic_ai import PydanticAIIntake
+
         intake = PydanticAIIntake(SpecSession())
         self._items[new_id] = (intake, now)
         self._items.move_to_end(new_id)

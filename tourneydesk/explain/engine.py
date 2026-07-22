@@ -10,9 +10,8 @@ Two paths produce the same `ConflictExplanation` shape:
   `grounding` list is checked against the conflict's actual descriptors
   (`_validate_grounding`); any mismatch falls back to the deterministic path.
 
-`anthropic` is imported at module scope (matching `tourneydesk.providers.claude`)
-but the client is only constructed inside `_llm_explanation`, so importing this
-module never requires `ANTHROPIC_API_KEY` and never touches the network.
+The Anthropic SDK and client are both loaded only inside `_llm_explanation`.
+Deterministic explanations therefore do not pay the provider import cost.
 """
 
 from __future__ import annotations
@@ -22,8 +21,6 @@ import logging
 import math
 import os
 from typing import Any
-
-import anthropic
 
 from tournament_scheduler.conflict import ConflictSet, extract_conflict
 from tournament_scheduler.models import DivisionSpec, FieldSize, FieldSpec, TeamSpec, TournamentSpec
@@ -557,6 +554,8 @@ def _validate_grounding(explanation: ConflictExplanation, conflict: ConflictSet)
 
 def _llm_explanation(spec: TournamentSpec, conflict: ConflictSet) -> ConflictExplanation:
     """Single non-conversational structured-output call. Raises on any failure; caller falls back."""
+    import anthropic
+
     client = anthropic.Anthropic()
     model = os.environ.get("TOURNEYDESK_MODEL", DEFAULT_MODEL)
 
