@@ -13,7 +13,8 @@ Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
 Cost knob: `min_containers=0` (default) = scale-to-zero, pay per request-second.
 Set it to 1 for an always-warm container (real 24/7 compute) if the first-hit
 latency ever matters more than idle cost. `scaledown_window` keeps a warmed
-container around briefly after traffic so bursts don't each cold-start.
+container around for Modal's 20-minute maximum after traffic so nearby
+off-window visits don't each cold-start.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ app = modal.App("tourneydesk-demo")
     image=image,
     secrets=[modal.Secret.from_name("tourneydesk")],
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
-    scaledown_window=300,  # keep a warm container ~5 min after last request
+    scaledown_window=1200,  # Modal's max: retain an idle container for 20 min
     # Restore from a memory snapshot on scale-from-zero instead of re-importing
     # Python (~8-9 s measured) — restores land in a couple of seconds. The LLM
     # stack is not loaded into the snapshot; the first chat request imports it,
