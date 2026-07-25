@@ -284,3 +284,14 @@ itself deferred until the explicitly requested LLM explanation path. This preser
 and deterministic explanation behavior while reducing snapshot creation and fallback cold
 starts. Rejected: permanent warm capacity, which still exceeds the personal-demo need and
 the Starter credit envelope.
+
+## D34 — Retain off-window containers for Modal's maximum idle window (2026-07-25)
+
+`deploy/modal_app.py` now sets `scaledown_window=1200`, Modal's 20-minute maximum,
+instead of five minutes. The weekday 8:00-23:00 America/Chicago scheduled
+`min_containers=1` policy remains unchanged. Outside that window and on weekends, the
+first visitor can still incur a cold start, but nearby follow-up visits reuse the container
+for up to 20 minutes after activity instead of repeatedly waking it after short gaps. This
+adds only request-triggered idle retention rather than permanent warm capacity. Rejected:
+24/7 `min_containers=1`, which still exceeds the personal-demo need and Starter credit
+envelope.
