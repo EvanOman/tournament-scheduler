@@ -28,7 +28,7 @@ OTel semantic conventions, so Grafana Cloud ingests it with no special handling.
 
 | Variable | Required | Meaning |
 | --- | --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | to export anything | OTLP base URL, e.g. `https://otlp-gateway-prod-us-east-0.grafana.net/otlp`. `/v1/traces` is appended. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | to export anything | OTLP base URL, e.g. `https://otlp-gateway-prod-us-east-2.grafana.net/otlp`. `/v1/traces` is appended. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | no | Full traces URL; overrides the base above. |
 | `OTEL_EXPORTER_OTLP_AUTHORIZATION` | for Grafana Cloud | Complete `Authorization` header value, e.g. `Basic <base64 instance-id:token>`. Omit for an unauthenticated local collector. |
 | `OTEL_SDK_DISABLED` | no | `true` turns export off without a redeploy path change. |
@@ -47,7 +47,7 @@ application secret. Add `OTEL_EXPORTER_OTLP_ENDPOINT` and
 modal secret create tourneydesk --force \
   ZAI_API_KEY='<preserve existing value>' \
   OPENAI_API_KEY='<preserve existing value>' \
-  OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-0.grafana.net/otlp' \
+  OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-2.grafana.net/otlp' \
   OTEL_EXPORTER_OTLP_AUTHORIZATION='Basic <base64 instance-id:token>'
 ```
 
