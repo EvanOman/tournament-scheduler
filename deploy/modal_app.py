@@ -8,7 +8,15 @@ site's Cloudflare Pages proxy points its origin here.
 Deploy:  uv run --with modal --no-project modal deploy deploy/modal_app.py
 Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
          GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS (and DEMO_SHARED_SECRET if the
-         proxy is configured to require it).
+         proxy is configured to require it). Optional
+         {GLM,GPT}_{INPUT,OUTPUT}_USD_PER_MILLION_TOKENS values enable estimated
+         per-turn cost telemetry without baking volatile prices into code.
+         `otel-grafana` holds OTEL_EXPORTER_OTLP_ENDPOINT and
+         OTEL_EXPORTER_OTLP_AUTHORIZATION, shared with the linprogx demo app so
+         one token rotation covers both. It must exist before this deploys --
+         Modal resolves secrets by name at deploy time. Tracing is fail-open, so
+         an empty-but-present secret is a valid "tracing off" configuration.
+         See docs/OBSERVABILITY.md.
 
 Cost knob: `min_containers=0` (default) = scale-to-zero, pay per request-second.
 Set it to 1 for an always-warm container (real 24/7 compute) if the first-hit
@@ -41,7 +49,10 @@ app = modal.App("tourneydesk-demo")
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name("tourneydesk")],
+    secrets=[
+        modal.Secret.from_name("tourneydesk"),
+        modal.Secret.from_name("otel-grafana"),
+    ],
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
     scaledown_window=1200,  # Modal's max: retain an idle container for 20 min
     # Restore from a memory snapshot on scale-from-zero instead of re-importing

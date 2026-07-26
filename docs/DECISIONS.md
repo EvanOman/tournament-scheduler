@@ -295,3 +295,36 @@ for up to 20 minutes after activity instead of repeatedly waking it after short 
 adds only request-triggered idle retention rather than permanent warm capacity. Rejected:
 24/7 `min_containers=1`, which still exceeds the personal-demo need and Starter credit
 envelope.
+
+## D35 — Backend tracing is a stdlib OTLP client, not the OpenTelemetry SDK (2026-07-26)
+
+The demo API now continues the W3C trace context the Cloudflare proxy forwards, so
+browser, edge, and Modal spans land in one trace. `demo/api/tracing.py` implements
+OTLP/HTTP with a JSON payload using only the standard library: a bounded queue drained
+by a lazily started daemon thread, W3C `traceparent` parsing that mirrors the edge
+parser, a pure-ASGI server-span middleware, and `configure`/`get_tracer` helpers.
+
+Rejected: `opentelemetry-sdk` plus `opentelemetry-instrumentation-fastapi`. It adds
+hundreds of milliseconds of import time to every cold start — the exact number D33 and
+D34 exist to reduce and this instrumentation exists to measure — pulls several packages
+into the Modal image, and duplicates a contract the site's `functions/_observability.ts`
+already implements by hand. Matching that file's payload shape, env var names, and
+privacy rules leaves one reviewable exporter contract across the edge and both Modal
+backends. The wire format is standard OTLP, so nothing about the backend is proprietary.
+
+Cold starts are reported as `faas.coldstart` plus a `container.init` child span that
+deliberately starts before its parent request, because the import window it covers ended
+as the request arrived. Memory-snapshot restores resume a process whose monotonic clock
+predates the snapshot, so an implausible (>120 s) init measurement is discarded and only
+the boolean is reported. Container identity is minted lazily from runtime process
+identity, avoiding one import-time id being cloned into every snapshot restore, and
+reuse count is exported only as four bounded buckets.
+
+Telemetry is fail-open by construction: a full queue drops spans, and connection
+failures, timeouts, and non-2xx responses are swallowed, counted, and logged at most
+once a minute without the URL, credentials, or exception. Export configuration lives in
+a Modal secret named `otel-grafana`, shared with the linprogx demo app so one token
+rotation covers both. `AgentTurn` gained optional model, token, configured cost, and
+provider-error telemetry so chat spans distinguish a real reply from an unavailable
+engine or provider failure without recording prompts or content. Volatile per-token
+prices remain runtime configuration rather than constants. See docs/OBSERVABILITY.md.

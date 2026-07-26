@@ -26,6 +26,7 @@ the whole loop runs with no key and no sockets.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -107,6 +108,11 @@ def _build_tools() -> list[Tool[_Deps]]:
             description=t["description"],
             json_schema=t["input_schema"],
             takes_ctx=True,
+            # Every tool reads or mutates the same SpecSession. Providers may
+            # return dependent calls (add division, then add its teams) in one
+            # response, so concurrent dispatch would race and intermittently
+            # drop a valid later mutation.
+            sequential=True,
         )
         for t in TOOLS
     ]
@@ -154,6 +160,56 @@ def _build_model(engine: str) -> Model | None:
         settings = OpenAIChatModelSettings(max_tokens=max_tokens, openai_reasoning_effort="none")
         return OpenAIChatModel(model_name, provider=OpenAIProvider(api_key=key), settings=settings)
     return None
+
+
+def _price(name: str) -> float | None:
+    """Read a non-negative per-million-token price, or leave cost unknown."""
+    try:
+        value = float(os.environ[name])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value >= 0 else None
+
+
+def _model_name(model: Model) -> str | None:
+    """Read model identity without letting an observational property fail a turn."""
+    try:
+        value = getattr(model, "model_name", None)
+    except Exception:  # noqa: BLE001 -- telemetry is always fail-open
+        return None
+    return str(value) if value is not None else None
+
+
+def _usage_fields(engine: str, model: Model, result: Any) -> dict[str, Any]:
+    """Best-effort model, token counts, and configured cost for a completed run.
+
+    Purely observational: Pydantic AI's usage surface has moved between releases,
+    so a missing attribute yields empty telemetry rather than a failed turn the
+    user would actually notice.
+    """
+    fields: dict[str, Any] = {}
+    try:
+        fields["model_name"] = _model_name(model)
+        usage = result.usage()
+        input_tokens = getattr(usage, "input_tokens", None)
+        output_tokens = getattr(usage, "output_tokens", None)
+        fields["input_tokens"] = input_tokens
+        fields["output_tokens"] = output_tokens
+        input_price = _price(f"{engine.upper()}_INPUT_USD_PER_MILLION_TOKENS")
+        output_price = _price(f"{engine.upper()}_OUTPUT_USD_PER_MILLION_TOKENS")
+        if (
+            isinstance(input_tokens, int)
+            and isinstance(output_tokens, int)
+            and input_price is not None
+            and output_price is not None
+        ):
+            fields["estimated_cost_usd"] = round(
+                (input_tokens * input_price + output_tokens * output_price) / 1_000_000,
+                9,
+            )
+    except Exception:  # noqa: BLE001 -- telemetry never breaks a reply
+        logger.debug("usage unavailable for this turn", exc_info=True)
+    return fields
 
 
 class PydanticAIIntake:
@@ -210,14 +266,27 @@ class PydanticAIIntake:
                 logger.exception("Pydantic AI run failed on engine=%s", engine)
                 text = _FRIENDLY_API_ERROR
                 _stream(text, on_text_delta)
-                return AgentTurn(text=text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=False)
+                return AgentTurn(
+                    text=text,
+                    tool_calls=deps.tool_calls,
+                    echoes=deps.echoes,
+                    complete=False,
+                    model_name=_model_name(model),
+                    provider_error=True,
+                )
 
             # Persist the full history (incl. this turn) so the NEXT turn -- on
             # either engine -- continues the same conversation.
             self._history = list(result.all_messages())
             final_text = result.output if isinstance(result.output, str) else str(result.output)
             _stream(final_text, on_text_delta)
-            return AgentTurn(text=final_text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=deps.complete)
+            return AgentTurn(
+                text=final_text,
+                tool_calls=deps.tool_calls,
+                echoes=deps.echoes,
+                complete=deps.complete,
+                **_usage_fields(engine, model, result),
+            )
 
         # A sink was given -> stream real token deltas of the FINAL assistant
         # text via `run_stream` + `stream_text(delta=True)`. `run_stream` runs
@@ -237,15 +306,29 @@ class PydanticAIIntake:
                         on_text_delta(chunk)
                 final_output = await result.get_output()
                 history = list(result.all_messages())
+                usage_fields = _usage_fields(engine, model, result)
         except Exception:  # noqa: BLE001 -- any model/transport error is user-facing, not fatal
             logger.exception("Pydantic AI run_stream failed on engine=%s", engine)
             text = _FRIENDLY_API_ERROR
             _stream(text, on_text_delta)
-            return AgentTurn(text=text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=False)
+            return AgentTurn(
+                text=text,
+                tool_calls=deps.tool_calls,
+                echoes=deps.echoes,
+                complete=False,
+                model_name=_model_name(model),
+                provider_error=True,
+            )
 
         self._history = history
         final_text = final_output if isinstance(final_output, str) else str(final_output)
-        return AgentTurn(text=final_text, tool_calls=deps.tool_calls, echoes=deps.echoes, complete=deps.complete)
+        return AgentTurn(
+            text=final_text,
+            tool_calls=deps.tool_calls,
+            echoes=deps.echoes,
+            complete=deps.complete,
+            **usage_fields,
+        )
 
 
 def _stream(text: str, on_text_delta: TextDelta | None) -> None:
