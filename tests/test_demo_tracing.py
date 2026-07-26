@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import ClientDisconnect
+from starlette.responses import StreamingResponse
 
 from demo.api import tracing
 
@@ -244,6 +247,93 @@ def test_unsampled_parent_suppresses_export(collector: _Collector, client: TestC
 
 
 # --- Fail-open ---------------------------------------------------------------
+
+
+def test_export_thread_start_failure_never_reaches_a_request(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    original_tracer = tracing._TRACER
+    original_start = tracing.threading.Thread.start
+
+    def fail_exporter_only(thread: threading.Thread) -> None:
+        if thread.name == "otlp-span-exporter":
+            raise RuntimeError("thread unavailable")
+        original_start(thread)
+
+    try:
+        tracing.reset_for_tests()
+        tracing.configure("tourneydesk")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://collector.example/otlp")
+        monkeypatch.setattr(tracing.threading.Thread, "start", fail_exporter_only)
+
+        response = client.get("/health", headers={"traceparent": VALID_TRACEPARENT})
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+    finally:
+        tracing._TRACER = original_tracer
+
+
+def test_enqueue_and_span_end_failures_are_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    exporter = tracing.SpanExporter("test")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://collector.example/otlp")
+    monkeypatch.setattr(exporter, "_ensure_worker", lambda: None)
+
+    def fail_enqueue(_: dict[str, Any]) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr(exporter._queue, "put_nowait", fail_enqueue)
+    exporter.submit({"name": "safe"})
+
+    class _BrokenExporter:
+        def submit(self, _: dict[str, Any]) -> None:
+            raise RuntimeError("submit unavailable")
+
+    span = tracing.Span(
+        "safe",
+        tracing.KIND_INTERNAL,
+        tracing.SpanContext(VALID_TRACE_ID, VALID_SPAN_ID),
+        None,
+        True,
+        _BrokenExporter(),  # type: ignore[arg-type]
+        time.time_ns(),
+    )
+    span.end()
+
+
+def test_exporter_construction_failure_installs_an_inert_tracer(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_tracer = tracing._TRACER
+
+    class _BrokenExporter:
+        def __init__(self, _: str) -> None:
+            raise RuntimeError("queue unavailable")
+
+    try:
+        tracing.reset_for_tests()
+        monkeypatch.setattr(tracing, "SpanExporter", _BrokenExporter)
+        tracer = tracing.configure("tourneydesk")
+        assert tracer.exporter is None
+    finally:
+        tracing._TRACER = original_tracer
+
+
+def test_flush_waits_for_inflight_post_and_reports_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    exporter = tracing.SpanExporter("test")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://collector.example/otlp")
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocking_send(_: list[dict[str, Any]]) -> None:
+        entered.set()
+        assert release.wait(2)
+
+    monkeypatch.setattr(exporter, "_send", blocking_send)
+    exporter.submit({"name": "in-flight"})
+    assert entered.wait(1)
+
+    assert exporter.flush(timeout=0.02) is False
+    release.set()
+    assert exporter.flush(timeout=1) is True
 
 
 def test_collector_connection_failure_never_reaches_the_user(collector: _Collector, client: TestClient) -> None:
@@ -548,20 +638,10 @@ def test_chat_spans_never_carry_the_message_or_reply(collector: _Collector, clie
     assert "Saturday" not in exported
 
 
-def test_a_client_disconnect_is_an_outcome_not_an_error(collector: _Collector) -> None:
-    """A reader navigating away must not look like a server fault.
-
-    Driven at the ASGI layer: the test client runs the app on a portal thread and
-    rewraps cancellation, which would obscure exactly the behaviour under test.
-    """
-
-    async def cancels(scope: dict[str, Any], receive: Any, send: Any) -> None:
-        raise asyncio.CancelledError
-
-    middleware = tracing.TracingMiddleware(cancels, routes=frozenset({"/health"}))
-    scope = {
+def _stream_scope(spec_version: str) -> dict[str, Any]:
+    return {
         "type": "http",
-        "asgi": {"version": "3.0"},
+        "asgi": {"version": "3.0", "spec_version": spec_version},
         "http_version": "1.1",
         "method": "GET",
         "scheme": "https",
@@ -571,16 +651,99 @@ def test_a_client_disconnect_is_an_outcome_not_an_error(collector: _Collector) -
         "headers": [(b"traceparent", VALID_TRACEPARENT.encode())],
     }
 
+
+def test_asgi_24_streaming_client_disconnect_preserves_sent_status(collector: _Collector) -> None:
+    """Exercise Starlette's real OSError -> ClientDisconnect production path."""
+
+    async def body() -> Any:
+        yield b"first"
+
+    async def streaming_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await StreamingResponse(body(), status_code=206)(scope, receive, send)
+
+    middleware = tracing.TracingMiddleware(streaming_app, routes=frozenset({"/health"}))
+    started = False
+
     async def receive() -> dict[str, Any]:
         return {"type": "http.request", "body": b"", "more_body": False}
 
-    async def send(_: dict[str, Any]) -> None:  # pragma: no cover -- never reached
-        raise AssertionError("no response should be sent")
+    async def send(message: dict[str, Any]) -> None:
+        nonlocal started
+        if message["type"] == "http.response.start":
+            started = True
+            return
+        if started:
+            raise OSError("socket closed")
 
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(middleware(scope, receive, send))
+    with pytest.raises(ClientDisconnect):
+        asyncio.run(middleware(_stream_scope("2.4"), receive, send))
 
     span = collector.await_named("GET /health")
     assert span["status"]["code"] == tracing.STATUS_UNSET
     assert _attrs(span)["request.outcome"] == "cancelled"
+    assert _attrs(span)["http.response.status_code"] == 206
     assert "error.type" not in _attrs(span)
+
+
+def test_pre_asgi_24_disconnect_listener_marks_cancelled(collector: _Collector) -> None:
+    """Exercise Starlette's older task-group listener, which returns normally."""
+
+    async def scenario() -> None:
+        response_started = asyncio.Event()
+        receive_count = 0
+
+        async def body() -> Any:
+            while True:
+                yield b"chunk"
+                await asyncio.sleep(10)
+
+        async def streaming_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+            await StreamingResponse(body(), status_code=207)(scope, receive, send)
+
+        middleware = tracing.TracingMiddleware(streaming_app, routes=frozenset({"/health"}))
+
+        async def receive() -> dict[str, Any]:
+            nonlocal receive_count
+            receive_count += 1
+            if receive_count == 1:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await response_started.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                response_started.set()
+
+        await middleware(_stream_scope("2.3"), receive, send)
+
+    asyncio.run(scenario())
+
+    span = collector.await_named("GET /health")
+    assert span["status"]["code"] == tracing.STATUS_UNSET
+    assert _attrs(span)["request.outcome"] == "cancelled"
+    assert _attrs(span)["http.response.status_code"] == 207
+    assert "error.type" not in _attrs(span)
+
+
+def test_lifespan_shutdown_flushes_for_modal(monkeypatch: pytest.MonkeyPatch) -> None:
+    flushed: list[float] = []
+    incoming = iter(({"type": "lifespan.startup"}, {"type": "lifespan.shutdown"}))
+
+    async def lifespan_app(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        assert scope["type"] == "lifespan"
+        assert (await receive())["type"] == "lifespan.startup"
+        await send({"type": "lifespan.startup.complete"})
+        assert (await receive())["type"] == "lifespan.shutdown"
+        await send({"type": "lifespan.shutdown.complete"})
+
+    async def receive() -> dict[str, Any]:
+        return next(incoming)
+
+    async def send(_: dict[str, Any]) -> None:
+        return None
+
+    monkeypatch.setattr(tracing, "flush", lambda timeout=3.0: flushed.append(timeout) or True)
+    middleware = tracing.TracingMiddleware(lifespan_app, routes=frozenset())
+    asyncio.run(middleware({"type": "lifespan"}, receive, send))
+
+    assert flushed == [3.0]

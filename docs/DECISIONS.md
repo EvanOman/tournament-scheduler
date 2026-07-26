@@ -320,11 +320,13 @@ the boolean is reported. Container identity is minted lazily from runtime proces
 identity, avoiding one import-time id being cloned into every snapshot restore, and
 reuse count is exported only as four bounded buckets.
 
-Telemetry is fail-open by construction: a full queue drops spans, and connection
-failures, timeouts, and non-2xx responses are swallowed, counted, and logged at most
-once a minute without the URL, credentials, or exception. Export configuration lives in
-a Modal secret named `otel-grafana`, shared with the linprogx demo app so one token
-rotation covers both. `AgentTurn` gained optional model, token, configured cost, and
-provider-error telemetry so chat spans distinguish a real reply from an unavailable
-engine or provider failure without recording prompts or content. Volatile per-token
-prices remain runtime configuration rather than constants. See docs/OBSERVABILITY.md.
+Telemetry is fail-open by construction: exporter setup, thread startup, enqueue,
+encoding, connection, timeout, and collector failures are swallowed and rate-limited
+without logging URLs, credentials, or exception content. Queue unfinished-work tracking
+and Modal's ASGI lifespan shutdown provide a bounded, truthful final flush. Optional
+OTLP variables live in the already-required `tourneydesk` secret, so absence of a
+telemetry-only secret cannot block a fresh deployment or rollback. `AgentTurn` gained
+optional model, token, configured cost, and provider-error telemetry so chat spans
+distinguish a real reply from an unavailable engine or provider failure without
+recording prompts or content. Volatile per-token prices remain runtime configuration
+rather than constants. See docs/OBSERVABILITY.md.

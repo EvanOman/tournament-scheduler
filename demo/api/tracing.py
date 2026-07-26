@@ -49,6 +49,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
+from starlette.requests import ClientDisconnect
+
 logger = logging.getLogger(__name__)
 
 AttributeValue = str | bool | int | float
@@ -65,7 +67,7 @@ STATUS_ERROR = 2
 
 # Losing the client mid-request unwinds the ASGI app with one of these. Neither
 # is a server fault, so they are recorded separately from a real failure.
-_CANCELLED = (asyncio.CancelledError, GeneratorExit)
+_CANCELLED = (asyncio.CancelledError, GeneratorExit, ClientDisconnect)
 
 # --- Bounds ------------------------------------------------------------------
 
@@ -110,12 +112,15 @@ def instance_id() -> str:
     when it does, mint a fresh opaque id.
     """
     global _instance_key, _instance_value
-    key = (os.getpid(), socket.gethostname())
-    with _instance_lock:
-        if key != _instance_key:
-            _instance_key = key
-            _instance_value = secrets.token_hex(8)
-        return _instance_value
+    try:
+        key = (os.getpid(), socket.gethostname())
+        with _instance_lock:
+            if key != _instance_key:
+                _instance_key = key
+                _instance_value = secrets.token_hex(8)
+            return _instance_value
+    except Exception:  # noqa: BLE001 -- instance telemetry cannot block serving
+        return "unknown"
 
 
 _init_monotonic = time.monotonic()
@@ -295,23 +300,36 @@ class SpanExporter:
         return bool(_traces_endpoint())
 
     def submit(self, span: dict[str, Any]) -> None:
-        if not self.enabled:
-            return
-        self._ensure_worker()
+        """Enqueue without ever propagating exporter lifecycle failures."""
         try:
+            if not self.enabled:
+                return
+            self._ensure_worker()
             self._queue.put_nowait(span)
         except queue.Full:
-            self._note_failure()
+            self._safe_note_failure()
+        except Exception:  # noqa: BLE001 -- telemetry must never break a request
+            self._safe_note_failure()
 
-    def flush(self, timeout: float = 3.0) -> None:
-        """Best-effort drain, used at process exit. Never raises."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if self._queue.empty():
-                # Give the in-flight batch a moment to finish its POST.
-                time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
-                return
-            time.sleep(0.02)
+    def flush(self, timeout: float = 3.0) -> bool:
+        """Wait for queued *and in-flight* batches, bounded by ``timeout``.
+
+        ``Queue.unfinished_tasks`` is decremented only after the worker's POST
+        returns, unlike ``empty()`` which becomes true as soon as a batch is
+        removed. The boolean says whether the drain really completed.
+        """
+        try:
+            deadline = time.monotonic() + max(0.0, timeout)
+            with self._queue.all_tasks_done:
+                while self._queue.unfinished_tasks:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    self._queue.all_tasks_done.wait(remaining)
+            return True
+        except Exception:  # noqa: BLE001 -- shutdown telemetry is fail-open too
+            self._safe_note_failure()
+            return False
 
     # -- worker lifecycle --
 
@@ -340,9 +358,23 @@ class SpanExporter:
     def _run(self) -> None:
         """Drain-and-send forever. Daemon: it ends when the process does."""
         while True:
-            batch = self._drain()
-            if batch:
+            try:
+                batch = self._drain()
+            except Exception:  # noqa: BLE001 -- keep exporter failure isolated
+                self._safe_note_failure()
+                continue
+            if not batch:
+                continue
+            try:
                 self._send(batch)
+            except Exception:  # noqa: BLE001 -- defensive around future transports
+                self._safe_note_failure()
+            finally:
+                for _ in batch:
+                    try:
+                        self._queue.task_done()
+                    except Exception:  # noqa: BLE001 -- daemon must stay alive
+                        self._safe_note_failure()
 
     def _drain(self) -> list[dict[str, Any]]:
         batch: list[dict[str, Any]] = []
@@ -401,9 +433,16 @@ class SpanExporter:
             )
             with urllib.request.urlopen(request, timeout=_EXPORT_TIMEOUT_S) as response:  # noqa: S310
                 if response.status >= 300:
-                    self._note_failure()
+                    self._safe_note_failure()
         except Exception:  # noqa: BLE001 -- telemetry must never break a request
+            self._safe_note_failure()
+
+    def _safe_note_failure(self) -> None:
+        """Record a drop if possible; even logging/accounting is fail-open."""
+        try:
             self._note_failure()
+        except Exception:  # noqa: BLE001 -- no telemetry exception may escape
+            pass
 
     def _note_failure(self) -> None:
         """Count a dropped export, logging at most once a minute.
@@ -511,26 +550,32 @@ class Span:
         self._ended = True
         if not self.sampled or self._exporter is None:
             return
-        otlp: dict[str, Any] = {
-            "traceId": self.context.trace_id,
-            "spanId": self.context.span_id,
-            "name": self.name[:_MAX_ATTR_CHARS],
-            "kind": self.kind,
-            "flags": int(self.context.trace_flags, 16),
-            "startTimeUnixNano": str(self.start_time_ns),
-            "endTimeUnixNano": str(end_time_ns if end_time_ns is not None else time.time_ns()),
-            "attributes": _attributes(self._attributes),
-            "status": (
-                {"code": self._status, "message": self._status_message}
-                if self._status_message
-                else {"code": self._status}
-            ),
-        }
-        if self.parent_span_id:
-            otlp["parentSpanId"] = self.parent_span_id
-        if self._events:
-            otlp["events"] = self._events
-        self._exporter.submit(otlp)
+        try:
+            otlp: dict[str, Any] = {
+                "traceId": self.context.trace_id,
+                "spanId": self.context.span_id,
+                "name": self.name[:_MAX_ATTR_CHARS],
+                "kind": self.kind,
+                "flags": int(self.context.trace_flags, 16),
+                "startTimeUnixNano": str(self.start_time_ns),
+                "endTimeUnixNano": str(end_time_ns if end_time_ns is not None else time.time_ns()),
+                "attributes": _attributes(self._attributes),
+                "status": (
+                    {"code": self._status, "message": self._status_message}
+                    if self._status_message
+                    else {"code": self._status}
+                ),
+            }
+            if self.parent_span_id:
+                otlp["parentSpanId"] = self.parent_span_id
+            if self._events:
+                otlp["events"] = self._events
+            self._exporter.submit(otlp)
+        except Exception:  # noqa: BLE001 -- ending a span cannot fail user work
+            try:
+                self._exporter._safe_note_failure()
+            except Exception:  # noqa: BLE001 -- even accounting is optional
+                pass
 
 
 class Tracer:
@@ -556,35 +601,52 @@ class Tracer:
         valid but *not sampled* still produces a span object with the right
         identity -- it simply records nothing, honouring the upstream decision.
         """
-        if parent is None:
-            active = _current_span.get()
-            parent = active.context if active is not None else None
+        try:
+            if parent is None:
+                active = _current_span.get()
+                parent = active.context if active is not None else None
 
-        if parent is None:
-            context = SpanContext(trace_id=secrets.token_hex(16), span_id=secrets.token_hex(8))
-            parent_span_id = None
-            sampled = True
-        else:
-            context = SpanContext(
-                trace_id=parent.trace_id,
-                span_id=secrets.token_hex(8),
-                trace_flags=parent.trace_flags,
+            if parent is None:
+                context = SpanContext(trace_id=secrets.token_hex(16), span_id=secrets.token_hex(8))
+                parent_span_id = None
+                sampled = True
+            else:
+                context = SpanContext(
+                    trace_id=parent.trace_id,
+                    span_id=secrets.token_hex(8),
+                    trace_flags=parent.trace_flags,
+                )
+                parent_span_id = parent.span_id
+                sampled = parent.sampled
+
+            span = Span(
+                name=name,
+                kind=kind,
+                context=context,
+                parent_span_id=parent_span_id,
+                sampled=sampled,
+                exporter=self.exporter,
+                start_time_ns=start_time_ns if start_time_ns is not None else time.time_ns(),
             )
-            parent_span_id = parent.span_id
-            sampled = parent.sampled
-
-        span = Span(
-            name=name,
-            kind=kind,
-            context=context,
-            parent_span_id=parent_span_id,
-            sampled=sampled,
-            exporter=self.exporter,
-            start_time_ns=start_time_ns if start_time_ns is not None else time.time_ns(),
-        )
-        if attributes:
-            span.set_attributes(attributes)
-        return span
+            if attributes:
+                span.set_attributes(attributes)
+            return span
+        except Exception:  # noqa: BLE001 -- return an inert span on setup failure
+            noop_parent = parent.span_id if parent is not None else None
+            noop_context = (
+                SpanContext(parent.trace_id, "0000000000000001", parent.trace_flags)
+                if parent is not None
+                else SpanContext("00000000000000000000000000000001", "0000000000000001", "00")
+            )
+            return Span(
+                name=name,
+                kind=kind,
+                context=noop_context,
+                parent_span_id=noop_parent,
+                sampled=False,
+                exporter=None,
+                start_time_ns=start_time_ns or 0,
+            )
 
     @contextmanager
     def span(
@@ -638,15 +700,30 @@ def configure(service_name: str) -> Tracer:
     global _TRACER
     with _configure_lock:
         if _TRACER is None:
-            exporter = SpanExporter(service_name)
-            _TRACER = Tracer(service_name, exporter)
-            atexit.register(exporter.flush)
+            try:
+                exporter = SpanExporter(service_name)
+                _TRACER = Tracer(service_name, exporter)
+                try:
+                    atexit.register(exporter.flush)
+                except Exception:  # noqa: BLE001 -- runtime shutdown still flushes
+                    pass
+            except Exception:  # noqa: BLE001 -- app startup must remain available
+                _TRACER = Tracer(service_name, None)
         return _TRACER
 
 
 def get_tracer() -> Tracer:
     """The configured tracer, or an inert one if ``configure`` was never called."""
     return _TRACER if _TRACER is not None else Tracer("unconfigured", None)
+
+
+def flush(timeout: float = 3.0) -> bool:
+    """Best-effort process-wide drain for ASGI/Modal shutdown."""
+    try:
+        tracer = get_tracer()
+        return tracer.exporter.flush(timeout) if tracer.exporter is not None else True
+    except Exception:  # noqa: BLE001 -- shutdown must never be held hostage
+        return False
 
 
 def reset_for_tests() -> None:
@@ -715,7 +792,16 @@ class TracingMiddleware:
         return path if path in self.routes else "/*"
 
     async def __call__(self, scope: MutableMapping[str, Any], receive: Any, send: Any) -> None:
-        if scope.get("type") != "http":
+        scope_type = scope.get("type")
+        if scope_type == "lifespan":
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                # Modal supports ASGI lifespan and runs this when the serving
+                # container exits, before its termination grace period closes.
+                flush()
+            return
+        if scope_type != "http":
             await self.app(scope, receive, send)
             return
 
@@ -753,21 +839,33 @@ class TracingMiddleware:
             self._record_init_span(tracer, span, init_seconds)
 
         status_code = 500
+        response_started = False
+        disconnected = False
         token = _current_span.set(span)
 
         async def send_wrapper(message: MutableMapping[str, Any]) -> None:
-            nonlocal status_code
+            nonlocal response_started, status_code
             if message.get("type") == "http.response.start":
                 status_code = int(message.get("status", 500))
+                response_started = True
             await send(message)
 
+        async def receive_wrapper() -> MutableMapping[str, Any]:
+            nonlocal disconnected
+            message = await receive()
+            if message.get("type") == "http.disconnect":
+                disconnected = True
+            return message
+
         try:
-            await self.app(scope, receive, send_wrapper)
+            await self.app(scope, receive_wrapper, send_wrapper)
         except _CANCELLED as exc:
             # The client went away mid-request (navigation, refresh, an aborted
             # fetch). That is an expected outcome, not an incident: the span
             # status stays UNSET so it never fires a 5xx-shaped alert.
             span.set_attribute("request.outcome", "cancelled")
+            if response_started:
+                span.set_attribute("http.response.status_code", status_code)
             raise exc from None
         except BaseException as exc:
             span.record_exception(exc)
@@ -775,14 +873,10 @@ class TracingMiddleware:
             span.set_attributes({"http.response.status_code": 500, "request.outcome": "internal_error"})
             raise
         else:
-            span.set_attributes(
-                {
-                    "http.response.status_code": status_code,
-                    "request.outcome": _outcome(status_code),
-                }
-            )
+            span.set_attribute("http.response.status_code", status_code)
+            span.set_attribute("request.outcome", "cancelled" if disconnected else _outcome(status_code))
             # OTel leaves successful server spans UNSET; only 5xx is an error.
-            if status_code >= 500:
+            if status_code >= 500 and not disconnected:
                 span.set_status(STATUS_ERROR)
                 span.set_attribute("error.type", str(status_code))
         finally:

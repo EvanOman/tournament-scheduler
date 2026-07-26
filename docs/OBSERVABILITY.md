@@ -39,22 +39,24 @@ as unconfigured.
 
 ### Modal secret
 
-`deploy/modal_app.py` attaches a Modal secret named **`otel-grafana`**, holding
-`OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_AUTHORIZATION`. The same
-secret backs the linprogx demo app, so one token rotation covers both services.
-
-Create it once, before deploying either app — Modal resolves secrets by name at
-deploy time and fails the deploy if the name does not exist:
+`deploy/modal_app.py` attaches only the existing required **`tourneydesk`**
+application secret. Add `OTEL_EXPORTER_OTLP_ENDPOINT` and
+`OTEL_EXPORTER_OTLP_AUTHORIZATION` to that secret when tracing is wanted:
 
 ```bash
-modal secret create otel-grafana \
+modal secret create tourneydesk --force \
+  ZAI_API_KEY='<preserve existing value>' \
+  OPENAI_API_KEY='<preserve existing value>' \
   OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-0.grafana.net/otlp' \
   OTEL_EXPORTER_OTLP_AUTHORIZATION='Basic <base64 instance-id:token>'
 ```
 
-Use a write-only Grafana Cloud Access Policy token. To turn tracing off without
-touching code, replace the endpoint with an empty string (or set
-`OTEL_SDK_DISABLED=true`) and redeploy; the service keeps serving either way.
+The placeholders are a reminder that `modal secret create --force` replaces
+the named secret: preserve every existing application key when updating it.
+Use a write-only Grafana Cloud Access Policy token. A fresh environment or
+rollback with no OTLP variables still deploys and serves normally; tracing is
+simply inactive. To turn tracing off, omit the endpoint (or set
+`OTEL_SDK_DISABLED=true`) and redeploy.
 
 The existing **`tourneydesk`** application secret may optionally include
 `GLM_INPUT_USD_PER_MILLION_TOKENS`,
@@ -135,6 +137,8 @@ No telemetry path can fail a user request:
 - export runs on a bounded queue drained by a daemon thread, so a request never
   waits on the collector;
 - a full queue drops spans;
+- exporter construction, thread startup, enqueue, payload encoding, and span
+  completion failures are all swallowed;
 - connection failures, timeouts, and non-2xx responses are swallowed and counted,
   logged at most once a minute, and never include the URL, credentials, or the
   exception;
@@ -142,7 +146,16 @@ No telemetry path can fail a user request:
 
 The exporter thread starts on first use rather than at import, keeping it out of
 Modal's memory snapshot; a pid/liveness check restarts it after a snapshot
-restore or fork.
+restore or fork. Queue bookkeeping includes batches already removed by the
+worker, so the bounded shutdown flush does not report completion while an OTLP
+POST is still in flight. Modal supports the ASGI lifespan protocol; the tracing
+middleware flushes during lifespan shutdown, with `atexit` retained as a final
+fallback.
+
+For streams, ASGI 2.4 `ClientDisconnect` and the older `http.disconnect`
+listener path both produce `request.outcome=cancelled`, keep the response
+status that was already sent, and leave span status unset rather than creating
+a false server incident.
 
 `tests/test_demo_tracing.py` covers all of this — valid, invalid, and missing
 trace context, unsampled upstream decisions, collector connection failure,
