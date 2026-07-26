@@ -33,18 +33,32 @@ OTel semantic conventions, so Grafana Cloud ingests it with no special handling.
 | `OTEL_EXPORTER_OTLP_AUTHORIZATION` | for Grafana Cloud | Complete `Authorization` header value, e.g. `Basic <base64 instance-id:token>`. Omit for an unauthenticated local collector. |
 | `OTEL_SDK_DISABLED` | no | `true` turns export off without a redeploy path change. |
 | `DEPLOY_ENVIRONMENT` | no | Sets `deployment.environment.name` on the resource. |
+| `TOURNEYDESK_OTEL_SECRET_NAME` | no | Local deploy-time selector for an existing Modal secret containing the OTLP variables above. It is not injected into the container. |
 
 Only `http://` and `https://` endpoints are accepted; anything else is treated
 as unconfigured.
 
-### Modal secret
+### Modal secrets
 
 `deploy/modal_app.py` always attaches the existing required **`tourneydesk`**
-application secret. When `OTEL_EXPORTER_OTLP_ENDPOINT` is present in the local
-deploy process, it also builds a separate, unnamed Modal secret containing the
-OTLP endpoint and optional authorization value. The unnamed secret is attached
-last, so those values override stale telemetry keys without reading, replacing,
-or otherwise changing the application secret.
+application secret. Production already stores the write-only Grafana
+credentials in the separate **`otel-grafana`** Modal secret. Select it by name
+at deploy time; Modal resolves and injects it without exposing its values:
+
+```bash
+TOURNEYDESK_OTEL_SECRET_NAME=otel-grafana \
+  uv run --with modal --no-project modal deploy deploy/modal_app.py
+```
+
+The selector accepts only 1–64 lowercase letters, numbers, or hyphens and must
+start and end with a letter or number. It is used only while constructing the
+deployment and is not itself injected into the container. Modal also verifies
+that the selected secret contains `OTEL_EXPORTER_OTLP_ENDPOINT`, so a typo that
+resolves to an unrelated secret fails the deployment instead of silently
+disabling traces. Authorization remains optional for unauthenticated collectors.
+
+For a one-off collector that has no named Modal secret, the endpoint and
+authorization can instead come from the local deploy process:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-2.grafana.net/otlp'
@@ -55,11 +69,15 @@ unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_AUTHORIZATION
 ```
 
 The authorization header remains out of shell history because `read` collects
-it without echoing. Use a write-only Grafana Cloud Access Policy token. A fresh
-environment or rollback with no OTLP variables creates no additional secret
-dependency and still deploys normally; tracing is simply inactive unless the
-named application secret already contains telemetry configuration. To turn
-deploy-time tracing off, omit the endpoint and redeploy.
+it without echoing. Use a write-only Grafana Cloud Access Policy token.
+Precedence is deterministic when sources overlap: the required `tourneydesk`
+secret is attached first, the selected named OTLP secret second, and inline
+deploy-process OTLP values last. Later values override earlier ones.
+
+A fresh environment or rollback with neither selector nor inline OTLP endpoint
+creates no additional secret dependency and still deploys normally; tracing is
+inactive unless the named application secret already contains telemetry
+configuration. To turn deploy-time tracing off, omit both sources and redeploy.
 
 The existing **`tourneydesk`** application secret may optionally include
 `GLM_INPUT_USD_PER_MILLION_TOKENS`,

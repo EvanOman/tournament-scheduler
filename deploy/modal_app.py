@@ -5,17 +5,16 @@ that Render ran, but on Modal: fast container starts (seconds, not the 30-60s of
 a Render free instance) and scale-to-zero so idle cost is ~nothing. The public
 site's Cloudflare Pages proxy points its origin here.
 
-Deploy:  OTEL_EXPORTER_OTLP_ENDPOINT=... \
-         OTEL_EXPORTER_OTLP_AUTHORIZATION=... \
+Deploy:  TOURNEYDESK_OTEL_SECRET_NAME=otel-grafana \
          uv run --with modal --no-project modal deploy deploy/modal_app.py
 Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
          GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS (and DEMO_SHARED_SECRET if the
          proxy is configured to require it). Optional
          {GLM,GPT}_{INPUT,OUTPUT}_USD_PER_MILLION_TOKENS values enable estimated
          per-turn cost telemetry without baking volatile prices into code.
-         OTLP values are read from the deploy process and injected separately,
-         without replacing or requiring changes to the named application
-         secret. See docs/OBSERVABILITY.md.
+         OTLP configuration comes from a separately selected named secret or
+         inline deploy-process values, without reading or replacing the named
+         application secret. See docs/OBSERVABILITY.md.
 
 Cost knob: `min_containers=0` (default) = scale-to-zero, pay per request-second.
 Set it to 1 for an always-warm container (real 24/7 compute) if the first-hit
@@ -27,6 +26,7 @@ off-window visits don't each cold-start.
 from __future__ import annotations
 
 import os
+import re
 
 import modal
 
@@ -47,10 +47,27 @@ image = (
 
 app = modal.App("tourneydesk-demo")
 
+_SECRET_NAME_PATTERN = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?")
+
 
 def _deployment_secrets() -> list[modal.Secret]:
     """Keep observability optional and separate from application credentials."""
+    otlp_secret_name = os.getenv("TOURNEYDESK_OTEL_SECRET_NAME")
+    if otlp_secret_name is not None and not _SECRET_NAME_PATTERN.fullmatch(otlp_secret_name):
+        raise ValueError(
+            "TOURNEYDESK_OTEL_SECRET_NAME must be 1-64 lowercase letters, numbers, or hyphens, "
+            "and must start and end with a letter or number"
+        )
+
     secrets = [modal.Secret.from_name("tourneydesk")]
+    if otlp_secret_name is not None:
+        secrets.append(
+            modal.Secret.from_name(
+                otlp_secret_name,
+                required_keys=["OTEL_EXPORTER_OTLP_ENDPOINT"],
+            )
+        )
+
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if endpoint:
         secrets.append(
@@ -66,8 +83,8 @@ def _deployment_secrets() -> list[modal.Secret]:
 
 @app.function(
     image=image,
-    # The inline OTLP secret is last so deploy-time values override any stale
-    # telemetry keys in the named secret without touching its application keys.
+    # Later secrets win: app credentials, then the selected named OTLP secret,
+    # then inline deploy-time values. None of these paths reads a secret value.
     secrets=_deployment_secrets(),
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
     scaledown_window=1200,  # Modal's max: retain an idle container for 20 min
