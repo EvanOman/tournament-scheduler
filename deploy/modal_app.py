@@ -5,16 +5,17 @@ that Render ran, but on Modal: fast container starts (seconds, not the 30-60s of
 a Render free instance) and scale-to-zero so idle cost is ~nothing. The public
 site's Cloudflare Pages proxy points its origin here.
 
-Deploy:  uv run --with modal --no-project modal deploy deploy/modal_app.py
+Deploy:  OTEL_EXPORTER_OTLP_ENDPOINT=... \
+         OTEL_EXPORTER_OTLP_AUTHORIZATION=... \
+         uv run --with modal --no-project modal deploy deploy/modal_app.py
 Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
          GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS (and DEMO_SHARED_SECRET if the
          proxy is configured to require it). Optional
          {GLM,GPT}_{INPUT,OUTPUT}_USD_PER_MILLION_TOKENS values enable estimated
          per-turn cost telemetry without baking volatile prices into code.
-         Optional OTEL_EXPORTER_OTLP_ENDPOINT and
-         OTEL_EXPORTER_OTLP_AUTHORIZATION values live in that same required
-         application secret. This avoids making a missing observability-only
-         secret block a fresh deploy or rollback. See docs/OBSERVABILITY.md.
+         OTLP values are read from the deploy process and injected separately,
+         without replacing or requiring changes to the named application
+         secret. See docs/OBSERVABILITY.md.
 
 Cost knob: `min_containers=0` (default) = scale-to-zero, pay per request-second.
 Set it to 1 for an always-warm container (real 24/7 compute) if the first-hit
@@ -24,6 +25,8 @@ off-window visits don't each cold-start.
 """
 
 from __future__ import annotations
+
+import os
 
 import modal
 
@@ -45,9 +48,27 @@ image = (
 app = modal.App("tourneydesk-demo")
 
 
+def _deployment_secrets() -> list[modal.Secret]:
+    """Keep observability optional and separate from application credentials."""
+    secrets = [modal.Secret.from_name("tourneydesk")]
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if endpoint:
+        secrets.append(
+            modal.Secret.from_dict(
+                {
+                    "OTEL_EXPORTER_OTLP_ENDPOINT": endpoint,
+                    "OTEL_EXPORTER_OTLP_AUTHORIZATION": os.getenv("OTEL_EXPORTER_OTLP_AUTHORIZATION"),
+                }
+            )
+        )
+    return secrets
+
+
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name("tourneydesk")],
+    # The inline OTLP secret is last so deploy-time values override any stale
+    # telemetry keys in the named secret without touching its application keys.
+    secrets=_deployment_secrets(),
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
     scaledown_window=1200,  # Modal's max: retain an idle container for 20 min
     # Restore from a memory snapshot on scale-from-zero instead of re-importing

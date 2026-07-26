@@ -39,24 +39,27 @@ as unconfigured.
 
 ### Modal secret
 
-`deploy/modal_app.py` attaches only the existing required **`tourneydesk`**
-application secret. Add `OTEL_EXPORTER_OTLP_ENDPOINT` and
-`OTEL_EXPORTER_OTLP_AUTHORIZATION` to that secret when tracing is wanted:
+`deploy/modal_app.py` always attaches the existing required **`tourneydesk`**
+application secret. When `OTEL_EXPORTER_OTLP_ENDPOINT` is present in the local
+deploy process, it also builds a separate, unnamed Modal secret containing the
+OTLP endpoint and optional authorization value. The unnamed secret is attached
+last, so those values override stale telemetry keys without reading, replacing,
+or otherwise changing the application secret.
 
 ```bash
-modal secret create tourneydesk --force \
-  ZAI_API_KEY='<preserve existing value>' \
-  OPENAI_API_KEY='<preserve existing value>' \
-  OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-2.grafana.net/otlp' \
-  OTEL_EXPORTER_OTLP_AUTHORIZATION='Basic <base64 instance-id:token>'
+export OTEL_EXPORTER_OTLP_ENDPOINT='https://otlp-gateway-prod-us-east-2.grafana.net/otlp'
+read -rsp 'Grafana OTLP Authorization header: ' OTEL_EXPORTER_OTLP_AUTHORIZATION
+export OTEL_EXPORTER_OTLP_AUTHORIZATION
+uv run --with modal --no-project modal deploy deploy/modal_app.py
+unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_AUTHORIZATION
 ```
 
-The placeholders are a reminder that `modal secret create --force` replaces
-the named secret: preserve every existing application key when updating it.
-Use a write-only Grafana Cloud Access Policy token. A fresh environment or
-rollback with no OTLP variables still deploys and serves normally; tracing is
-simply inactive. To turn tracing off, omit the endpoint (or set
-`OTEL_SDK_DISABLED=true`) and redeploy.
+The authorization header remains out of shell history because `read` collects
+it without echoing. Use a write-only Grafana Cloud Access Policy token. A fresh
+environment or rollback with no OTLP variables creates no additional secret
+dependency and still deploys normally; tracing is simply inactive unless the
+named application secret already contains telemetry configuration. To turn
+deploy-time tracing off, omit the endpoint and redeploy.
 
 The existing **`tourneydesk`** application secret may optionally include
 `GLM_INPUT_USD_PER_MILLION_TOKENS`,
