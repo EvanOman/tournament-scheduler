@@ -19,6 +19,7 @@ import asyncio
 import json
 import threading
 import time
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -125,16 +126,23 @@ def _attrs(span: dict[str, Any]) -> dict[str, Any]:
 
 
 @pytest.fixture
-def collector(monkeypatch: pytest.MonkeyPatch) -> _Collector:
+def collector(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Collector]:
     """Point the process-wide exporter at an in-memory collector."""
+    original_tracer = tracing._TRACER
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://collector.example/otlp")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_AUTHORIZATION", "Basic dGVzdA==")
     monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
     sink = _Collector()
     monkeypatch.setattr(tracing.urllib.request, "urlopen", sink.urlopen)
-    # Every test gets a fresh cold start so the marker is deterministic.
-    tracing.reset_cold_start_for_tests()
-    return sink
+    # Own the tracer rather than relying on another test to import demo.api.main.
+    # This makes direct selections of the ASGI middleware tests representative.
+    tracing.reset_for_tests()
+    tracing.configure("tourneydesk")
+    try:
+        yield sink
+    finally:
+        tracing.flush(timeout=1)
+        tracing._TRACER = original_tracer
 
 
 @pytest.fixture
