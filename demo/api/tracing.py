@@ -420,7 +420,13 @@ class SpanExporter:
                 }
             ]
         }
-        headers = {"Content-Type": "application/json"}
+        # Cloudflare rejects Python's default ``Python-urllib/*`` user agent for
+        # Modal egress before the relay Function runs. Identify this bounded,
+        # machine-to-machine client explicitly so valid exports reach the relay.
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "tourneydesk-otlp/1",
+        }
         authorization = _env("OTEL_EXPORTER_OTLP_AUTHORIZATION")
         if authorization:
             headers["Authorization"] = authorization

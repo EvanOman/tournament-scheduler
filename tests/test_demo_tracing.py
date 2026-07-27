@@ -54,6 +54,7 @@ class _Collector:
 
     def __init__(self) -> None:
         self.payloads: list[dict[str, Any]] = []
+        self.requests: list[Any] = []
         self.status = 200
         self.error: Exception | None = None
 
@@ -62,6 +63,7 @@ class _Collector:
     def urlopen(self, request: Any, timeout: float | None = None) -> Any:
         if self.error is not None:
             raise self.error
+        self.requests.append(request)
         self.payloads.append(json.loads(request.data.decode("utf-8")))
         return _FakeResponse(self.status)
 
@@ -361,6 +363,14 @@ def test_collector_rejection_never_reaches_the_user(collector: _Collector, clien
 
     assert response.status_code == 200
     assert response.json()["result"] == "solved"
+
+
+def test_exporter_uses_an_application_user_agent(collector: _Collector, client: TestClient) -> None:
+    client.get("/health", headers={"traceparent": VALID_TRACEPARENT})
+
+    collector.await_named("GET /health")
+    assert collector.requests[0].get_header("User-agent") == "tourneydesk-otlp/1"
+    assert collector.requests[0].get_header("Content-type") == "application/json"
 
 
 def test_unconfigured_endpoint_exports_nothing_and_still_serves(
