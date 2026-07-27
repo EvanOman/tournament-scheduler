@@ -25,12 +25,22 @@ SpecMutated = Callable[[], None]
 
 @dataclass
 class AgentTurn:
-    """One reply from the intake agent for a single director message."""
+    """One reply from the intake agent for a single director message.
+
+    The fields below are optional telemetry. They are never required for the
+    conversation itself, so providers that cannot report usage leave them at
+    their safe defaults.
+    """
 
     text: str
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     echoes: list[str] = field(default_factory=list)
     complete: bool = False
+    model_name: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_cost_usd: float | None = None
+    provider_error: bool = False
 
 
 @runtime_checkable

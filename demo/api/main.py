@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from demo.api import tracing
 from tournament_scheduler.conflict import extract_conflict
 from tournament_scheduler.models import (
     CoachingConflict,
@@ -49,11 +50,20 @@ from tourneydesk.session import SpecSession
 from tourneydesk.web.schedule_view import schedule_payload
 
 if TYPE_CHECKING:
+    from tourneydesk.providers.base import AgentTurn
     from tourneydesk.providers.pydantic_ai import PydanticAIIntake
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TourneyDesk Demo API", version="0.2.0", docs_url=None, redoc_url=None)
+
+# Continue the browser -> Cloudflare -> Modal trace. Fail-open: with no OTLP
+# endpoint configured this costs a few dict lookups per request and exports
+# nothing. See docs/OBSERVABILITY.md.
+_SERVICE_NAME = "tourneydesk"
+# Bounds http.route cardinality; anything else is reported as "/*".
+_TRACED_ROUTES = frozenset({"/health", "/solve", "/chat", "/chat/stream"})
+tracing.configure(_SERVICE_NAME)
 
 ALLOWED_ORIGINS = [
     "https://evanoman.com",
@@ -68,6 +78,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["content-type"],
 )
+# Added last, so it wraps CORS and the server span covers the whole request --
+# including preflights and anything CORS short-circuits.
+app.add_middleware(tracing.TracingMiddleware, routes=_TRACED_ROUTES)
 
 # One solve at a time is plenty for a personal-site demo, and it bounds the
 # free-tier instance's memory/CPU exposure regardless of request volume.
@@ -163,34 +176,59 @@ def _build_spec(req: DemoRequest) -> TournamentSpec:
     )
 
 
-def _solve_and_shape(spec: TournamentSpec) -> dict[str, Any]:
-    pools = assign_pools(spec)
-    schedule = solve(spec, pools)
-    status = schedule.stats.status
+def _spec_shape(spec: TournamentSpec) -> dict[str, Any]:
+    """Size-only description of a spec: counts, never names."""
+    return {
+        "tournament.divisions": len(spec.divisions),
+        "tournament.teams": len(spec.teams),
+        "tournament.fields": len(spec.fields),
+        "tournament.coaching_conflicts": len(spec.coaching_conflicts),
+    }
 
-    if status in ("OPTIMAL", "FEASIBLE"):
-        result = validate(schedule, spec)
-        outcome = SolveOutcome(
-            status="solved" if result.valid else "invalid",
-            schedule=schedule,
-            validation=result,
-            spec=spec,
+
+def _solve_and_shape(spec: TournamentSpec, parent: tracing.SpanContext | None = None) -> dict[str, Any]:
+    # Runs on the shared executor thread, where the request's ContextVar is not
+    # visible -- hence the explicitly threaded parent context.
+    with tracing.get_tracer().span("solve.tournament", parent=parent, attributes=_spec_shape(spec)) as span:
+        pools = assign_pools(spec)
+        schedule = solve(spec, pools)
+        status = schedule.stats.status
+        span.set_attributes(
+            {
+                "solve.status": status,
+                "solve.games": len(schedule.games),
+                "solve.wall_time_ms": round(schedule.stats.wall_time_seconds * 1000, 2),
+            }
         )
-        return {"result": "solved", "schedule": schedule_payload(outcome)}
 
-    if status == "INFEASIBLE":
-        conflict = extract_conflict(spec, pools, time_limit_s=_SOLVE_SECONDS)
-        payload: dict[str, Any] = {"result": "infeasible", "explanation": None}
-        if conflict is not None:
-            # The deterministic path does not need an LLM provider. Import the
-            # explanation stack only for the uncommon infeasible solve.
-            from tourneydesk.explain.engine import explain_conflict
+        if status in ("OPTIMAL", "FEASIBLE"):
+            result = validate(schedule, spec)
+            outcome = SolveOutcome(
+                status="solved" if result.valid else "invalid",
+                schedule=schedule,
+                validation=result,
+                spec=spec,
+            )
+            span.set_attributes({"solve.result": "solved", "solve.valid": result.valid})
+            return {"result": "solved", "schedule": schedule_payload(outcome)}
 
-            explanation = explain_conflict(spec, conflict, use_llm=False)
-            payload["explanation"] = explanation.model_dump(mode="json")
-        return payload
+        if status == "INFEASIBLE":
+            conflict = extract_conflict(spec, pools, time_limit_s=_SOLVE_SECONDS)
+            payload: dict[str, Any] = {"result": "infeasible", "explanation": None}
+            if conflict is not None:
+                # The deterministic path does not need an LLM provider. Import the
+                # explanation stack only for the uncommon infeasible solve.
+                from tourneydesk.explain.engine import explain_conflict
 
-    return {"result": "inconclusive"}
+                explanation = explain_conflict(spec, conflict, use_llm=False)
+                payload["explanation"] = explanation.model_dump(mode="json")
+            # Infeasible is an expected outcome, not an error: the span status
+            # stays UNSET so it never fires a 5xx-shaped alert.
+            span.set_attributes({"solve.result": "infeasible", "solve.explained": conflict is not None})
+            return payload
+
+        span.set_attribute("solve.result", "inconclusive")
+        return {"result": "inconclusive"}
 
 
 # ---------------------------------------------------------------------------
@@ -256,22 +294,82 @@ class ChatRequest(BaseModel):
     model: Literal["glm", "gpt"] = "glm"
 
 
+# Bounded, enumerated provider labels for gen_ai.system -- never a raw base URL.
+_CHAT_PROVIDERS = {"glm": "zhipu", "gpt": "openai"}
+
+
+def _record_turn(span: tracing.Span, turn: AgentTurn) -> None:
+    """Put a completed turn's bounded metadata on its span.
+
+    Counts and model identity only -- never the director's message, the reply,
+    or any tool argument.
+    """
+    span.set_attributes(
+        {
+            "gen_ai.response.model": turn.model_name,
+            "gen_ai.usage.input_tokens": turn.input_tokens,
+            "gen_ai.usage.output_tokens": turn.output_tokens,
+            "gen_ai.usage.cost_usd": turn.estimated_cost_usd,
+            "chat.tool_calls": len(turn.tool_calls),
+            "chat.spec_mutations": len(turn.echoes),
+            "chat.intake_complete": turn.complete,
+            # A missing-key turn reports no model. A provider failure preserves
+            # model identity and is distinguished by chat.provider_error.
+            "chat.reached_model": turn.model_name is not None,
+            "chat.provider_error": turn.provider_error,
+        }
+    )
+    if turn.provider_error:
+        span.set_status(tracing.STATUS_ERROR)
+        span.set_attribute("error.type", "GenAIProviderError")
+
+
+def _turn_outcome(turn: AgentTurn) -> str:
+    if turn.provider_error:
+        return "provider_error"
+    if turn.model_name is None:
+        return "unconfigured"
+    return "final"
+
+
+async def _solve_session_span(session: SpecSession, parent: tracing.SpanContext | None) -> dict[str, Any]:
+    """Speculative solve of the in-progress spec, as a child span of the turn."""
+    loop = asyncio.get_running_loop()
+    with tracing.get_tracer().span("solve.session", parent=parent) as span:
+        outcome = await loop.run_in_executor(_EXECUTOR, solve_current, session)
+        span.set_attribute("solve.status", outcome.status)
+        return schedule_payload(outcome)
+
+
 @app.post("/chat")
 async def chat(req: ChatRequest) -> dict[str, Any]:
     session_id, intake = _CHAT_STORE.get_or_create(req.session_id)
 
-    # Pydantic AI is async-native, so the model turn awaits directly on the event
-    # loop; only the (blocking) CP-SAT solve is offloaded to the shared
-    # single-worker executor so chat and /solve can't stack solves on free tier.
-    turn = await intake.send(req.message, model_key=req.model)
+    tracer = tracing.get_tracer()
+    with tracer.span(
+        "chat.turn",
+        attributes={
+            "gen_ai.operation.name": "chat",
+            "gen_ai.system": _CHAT_PROVIDERS.get(req.model, "unknown"),
+            "gen_ai.provider.name": _CHAT_PROVIDERS.get(req.model, "unknown"),
+            "chat.engine": req.model,
+            "chat.streaming": False,
+            "chat.session_reused": req.session_id == session_id,
+        },
+    ) as span:
+        # Pydantic AI is async-native, so the model turn awaits directly on the event
+        # loop; only the (blocking) CP-SAT solve is offloaded to the shared
+        # single-worker executor so chat and /solve can't stack solves on free tier.
+        turn = await intake.send(req.message, model_key=req.model)
+        _record_turn(span, turn)
 
-    session = intake.session
-    rules = session.to_rules_json()
-    try:
-        outcome = await asyncio.get_running_loop().run_in_executor(_EXECUTOR, solve_current, session)
-        schedule = schedule_payload(outcome)
-    except Exception:  # noqa: BLE001 -- a solve hiccup must not sink the chat reply
-        schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
+        session = intake.session
+        rules = session.to_rules_json()
+        try:
+            schedule = await _solve_session_span(session, span.context)
+        except Exception:  # noqa: BLE001 -- a solve hiccup must not sink the chat reply
+            schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
+        span.set_attribute("chat.outcome", _turn_outcome(turn))
 
     return {"session_id": session_id, "reply": turn.text, "rules": rules, "schedule": schedule}
 
@@ -303,6 +401,22 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
 
+    # The turn span outlives this coroutine (it closes when the SSE generator
+    # finishes), so it is started and ended explicitly rather than with `with`.
+    turn_span = tracing.get_tracer().start_span(
+        "chat.turn",
+        attributes={
+            "gen_ai.operation.name": "chat",
+            "gen_ai.system": _CHAT_PROVIDERS.get(req.model, "unknown"),
+            "gen_ai.provider.name": _CHAT_PROVIDERS.get(req.model, "unknown"),
+            "chat.engine": req.model,
+            "chat.streaming": True,
+            "chat.session_reused": req.session_id == session_id,
+        },
+    )
+    started_at = time.monotonic()
+    ttft_recorded = False
+
     def emit(event: str, data: dict[str, Any]) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, (event, data))
 
@@ -310,6 +424,12 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
         emit("status", {"text": text})
 
     def on_text_delta(text: str) -> None:
+        # Time-to-first-token: the first assistant token on the wire, which is
+        # what a reader actually experiences as "it started answering".
+        nonlocal ttft_recorded
+        if not ttft_recorded:
+            ttft_recorded = True
+            turn_span.set_attribute("chat.ttft_ms", round((time.monotonic() - started_at) * 1000, 2))
         emit("delta", {"text": text})
 
     async def run_turn() -> None:
@@ -320,19 +440,23 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
                 model_key=req.model,
                 on_progress=on_progress,
             )
+            _record_turn(turn_span, turn)
 
             session = intake.session
             rules = session.to_rules_json()
             emit("status", {"text": "Solving your schedule…"})
             try:
-                outcome = await loop.run_in_executor(_EXECUTOR, solve_current, session)
-                schedule = schedule_payload(outcome)
+                schedule = await _solve_session_span(session, turn_span.context)
             except Exception:  # noqa: BLE001 -- a solve hiccup must not sink the chat reply
                 schedule = {"status": "incomplete", "missing": [], "assumptions": [], "message": "No schedule yet."}
 
             emit("final", {"session_id": session_id, "reply": turn.text, "rules": rules, "schedule": schedule})
-        except Exception:  # noqa: BLE001 -- any turn failure ends the stream with an error event, not a hang/500
+            turn_span.set_attribute("chat.outcome", _turn_outcome(turn))
+        except Exception as exc:  # noqa: BLE001 -- any turn failure ends the stream with an error event, not a hang/500
             logger.exception("chat_stream turn failed")
+            turn_span.record_exception(exc)
+            turn_span.set_status(tracing.STATUS_ERROR)
+            turn_span.set_attribute("chat.outcome", "error")
             emit(
                 "error",
                 {"message": "Something went wrong handling that message. Your draft is safe — please send it again."},
@@ -354,9 +478,13 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
             # Surface a bug in run_turn itself (outside its own try/except) as a
             # log entry rather than a silently swallowed task exception.
             if not task.done():
+                # The reader went away before the turn finished -- an expected
+                # outcome (navigation, refresh), recorded, never an error.
+                turn_span.set_attribute("chat.outcome", "early_end")
                 task.cancel()
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+            turn_span.end()
 
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
@@ -372,8 +500,15 @@ def solve_demo(req: DemoRequest) -> dict[str, Any]:
     if total_teams > 64:
         raise HTTPException(status_code=422, detail="Demo caps at 64 teams total.")
     spec = _build_spec(req)
-    future = _EXECUTOR.submit(_solve_and_shape, spec)
+    request_span = tracing.current_span()
+    if request_span is not None:
+        request_span.set_attribute("tournament.days", req.days)
+    future = _EXECUTOR.submit(_solve_and_shape, spec, tracing.current_span_context())
     try:
         return future.result(timeout=_REQUEST_TIMEOUT_S)
     except FuturesTimeoutError:
+        # The solve keeps running on the executor and will close its own span;
+        # the request's 504 is recorded by the middleware.
+        if request_span is not None:
+            request_span.set_attribute("solve.result", "timeout")
         raise HTTPException(status_code=504, detail="Solve timed out — try a smaller tournament.") from None
