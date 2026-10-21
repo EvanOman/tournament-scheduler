@@ -37,11 +37,9 @@ def _parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
     return events
 
 
-def test_chat_stream_emits_status_then_delta_then_final() -> None:
-    from demo.api.main import app
-
+def test_chat_stream_emits_status_then_delta_then_final(demo_chat_client: TestClient) -> None:
     _seed_store("sess-stream", {"glm": _streaming_full_spec_model()})
-    client = TestClient(app)
+    client = demo_chat_client
 
     resp = client.post("/chat/stream", json={"session_id": "sess-stream", "message": "build it", "model": "glm"})
 
@@ -77,14 +75,12 @@ def test_chat_stream_emits_status_then_delta_then_final() -> None:
     assert final_data["schedule"]["stats"]["num_games_scheduled"] >= 1
 
 
-def test_chat_stream_mints_session_and_defaults_to_glm(monkeypatch: Any) -> None:
+def test_chat_stream_mints_session_and_defaults_to_glm(monkeypatch: Any, demo_chat_client: TestClient) -> None:
     """No key configured -> a single friendly delta, no mutation status, still
     ends in `final` with an incomplete-schedule fallback (mirrors /chat)."""
     monkeypatch.delenv("ZAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    from demo.api.main import app
-
-    client = TestClient(app)
+    client = demo_chat_client
     resp = client.post("/chat/stream", json={"message": "hi there"})  # no model -> defaults to glm
 
     assert resp.status_code == 200
@@ -100,11 +96,11 @@ def test_chat_stream_mints_session_and_defaults_to_glm(monkeypatch: Any) -> None
     assert final_data["schedule"]["status"] == "incomplete"
 
 
-def test_chat_stream_error_path_ends_with_error_event() -> None:
+def test_chat_stream_error_path_ends_with_error_event(demo_chat_client: TestClient) -> None:
     """A bug that escapes the provider entirely (not just a model/API error,
     which the provider already turns into a friendly reply) must still close
     the stream cleanly with a terminal `error` frame, not a hang or a 500."""
-    from demo.api.main import _CHAT_STORE, app
+    from demo.api.main import _CHAT_STORE
 
     session_id = "sess-stream-boom"
     intake = PydanticAIIntake(SpecSession(), models={"glm": _streaming_full_spec_model()})
@@ -115,7 +111,7 @@ def test_chat_stream_error_path_ends_with_error_event() -> None:
     intake.send = _boom  # type: ignore[method-assign]
     _CHAT_STORE._items[session_id] = (intake, time.monotonic())
 
-    client = TestClient(app)
+    client = demo_chat_client
     resp = client.post("/chat/stream", json={"session_id": session_id, "message": "build it", "model": "glm"})
 
     assert resp.status_code == 200

@@ -27,6 +27,7 @@ from tourneydesk.providers.base import (
     run_conversation,
 )
 from tourneydesk.session import IncompleteSpecError, SpecSession
+from tourneydesk.solver_limits import validate_public_solver_work
 
 SolveStatus = Literal["incomplete", "infeasible", "invalid", "solved", "inconclusive"]
 
@@ -94,9 +95,9 @@ class IntakeService:
     def try_solve(self) -> SolveOutcome:
         """Attempt a speculative solve against the current draft.
 
-        Never raises: an incomplete draft or an infeasible/invalid schedule
-        all come back as a SolveOutcome with the right status, so callers
-        (CLI or web) can render a status without their own try/except.
+        An incomplete draft or an infeasible/invalid schedule comes back as
+        a SolveOutcome with the right status. A bounded public session can
+        raise ValueError when its model-construction workload is excessive.
         """
         return solve_current(self.session)
 
@@ -109,6 +110,9 @@ def solve_current(session: SpecSession) -> SolveOutcome:
     digest once described a different solution than the panel was showing
     (persona P5). Every consumer goes through here so, for a given draft,
     there is exactly ONE schedule everyone describes.
+
+    Bounded public sessions reject excessive model-construction work with
+    an actionable ValueError before calling the solver.
     """
     try:
         spec, assumptions = session.to_spec()
@@ -121,6 +125,8 @@ def solve_current(session: SpecSession) -> SolveOutcome:
         return session.solve_cache[1]
 
     pools = assign_pools(spec)
+    if session.limits is not None:
+        validate_public_solver_work(spec, pools)
     schedule = solve(spec, pools)
     if schedule.stats.status == "INFEASIBLE":
         outcome = SolveOutcome(status="infeasible", assumptions=assumptions, schedule=schedule, spec=spec)

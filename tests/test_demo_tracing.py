@@ -148,10 +148,8 @@ def collector(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Collector]:
 
 
 @pytest.fixture
-def client() -> TestClient:
-    from demo.api.main import app
-
-    return TestClient(app)
+def client(demo_chat_client: TestClient) -> TestClient:
+    return demo_chat_client
 
 
 # --- W3C traceparent parsing -------------------------------------------------

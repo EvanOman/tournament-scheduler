@@ -330,3 +330,42 @@ optional model, token, configured cost, and provider-error telemetry so chat spa
 distinguish a real reply from an unavailable engine or provider failure without
 recording prompts or content. Volatile per-token prices remain runtime configuration
 rather than constants. See docs/OBSERVABILITY.md.
+
+
+## D36 — Public demo chat authenticates at the origin and reserves shared admission (2026-10-21)
+
+Direct Modal and retained Render chat URLs must not bypass the website's cost controls.
+Both POST chat routes now authenticate `X-Demo-Secret` against the scoped
+`TOURNEYDESK_ORIGIN_SECRET` before reading a body or constructing a provider. Missing
+configuration fails closed. Health and the deterministic solver remain public.
+
+Pages derives a daily HMAC pseudonym from Cloudflare's ingress client IP and supplies
+`X-Demo-Client-Id`; end-user headers/cookies are not forwarded as that identity. The hard
+per-client allowance therefore applies per IP (including shared NATs), not per cookie.
+The older KV limiter remains an optional early rejection layer.
+
+Every origin calls `TOURNEYDESK_ADMISSION_URL` before paid work. The Modal admission
+service durably claims at most 15 messages/client/UTC day and 400 globally/UTC day, with
+at most four in-flight turns globally and one per client. Claims survive worker restarts
+and deployments; release does not refund the daily count. A Dict atomic insert locks
+the entire read/modify/write, including overlapping deployment versions. An unavailable
+store or crashed lock rejects chat. Leases expire after 120 seconds; model work is
+cancelled at 70 seconds and the final speculative solve waits at most 15 seconds.
+API autoscaling is capped at one container, preserving disposable session affinity.
+
+The public API selects `SpecSession(limits=PUBLIC_DEMO_LIMITS)` and
+`PydanticAIIntake(..., public_demo=True)`; the normal CLI/product defaults stay unchanged.
+The envelope checks entities, windows, scheduling numbers, tool inputs and retained
+provenance before mutation. Team batches are atomic. HTTP chat bodies cap at 8 KiB;
+agent runs cap at four model requests, 16 tool calls and 800 output tokens per request.
+Reported usage guards cap 16,000 input and 3,200 output tokens per run; these are
+post-response checks, not a prepaid dollar budget. Sessions keep at most 64 KiB of whole
+valid history, 12 model-started attempts and 64 retained conversations. History is never
+truncated across tool request/response pairs. See `docs/PUBLIC_DEMO_SECURITY.md`.
+
+The public solver also estimates derived construction work before CP-SAT is
+built: slots, decision variables and the existing solver's nested scans/pairs.
+This guard covers `/solve`, speculative solves and schedule-summary tools. It
+uses arithmetic over bounded metadata, admits every published site preset, and
+conservatively rejects some larger shapes. The unrestricted CLI/product solver
+retains its existing behavior.

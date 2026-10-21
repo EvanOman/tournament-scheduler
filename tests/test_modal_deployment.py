@@ -14,6 +14,7 @@ from deploy import modal_app
 def clean_deployment_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_AUTHORIZATION", raising=False)
+    monkeypatch.delenv("TOURNEYDESK_TELEMETRY_SECRET_NAME", raising=False)
 
 
 def test_deployment_without_otlp_environment_only_uses_named_secret(
@@ -25,8 +26,8 @@ def test_deployment_without_otlp_environment_only_uses_named_secret(
     monkeypatch.setattr(modal_app.modal.Secret, "from_name", from_name)
     monkeypatch.setattr(modal_app.modal.Secret, "from_dict", from_dict)
 
-    assert modal_app._deployment_secrets() == [named_secret]
-    from_name.assert_called_once_with("tourneydesk")
+    assert modal_app._deployment_secrets() == [named_secret, named_secret]
+    assert from_name.call_args_list == [(("tourneydesk",),), (("tourneydesk-origin-auth",),)]
     from_dict.assert_not_called()
 
 
@@ -45,8 +46,8 @@ def test_deployment_attaches_otlp_secret_after_named_secret_without_logging_valu
     monkeypatch.setattr(modal_app.modal.Secret, "from_name", from_name)
     monkeypatch.setattr(modal_app.modal.Secret, "from_dict", from_dict)
 
-    assert modal_app._deployment_secrets() == [named_secret, otlp_secret]
-    from_name.assert_called_once_with("tourneydesk")
+    assert modal_app._deployment_secrets() == [named_secret, named_secret, otlp_secret]
+    assert from_name.call_args_list == [(("tourneydesk",),), (("tourneydesk-origin-auth",),)]
     from_dict.assert_called_once_with(
         {
             "OTEL_EXPORTER_OTLP_ENDPOINT": endpoint,
@@ -71,7 +72,7 @@ def test_deployment_allows_an_unauthenticated_otlp_endpoint(
     from_dict = Mock(return_value=otlp_secret)
     monkeypatch.setattr(modal_app.modal.Secret, "from_dict", from_dict)
 
-    assert modal_app._deployment_secrets() == [named_secret, otlp_secret]
+    assert modal_app._deployment_secrets() == [named_secret, named_secret, otlp_secret]
     from_dict.assert_called_once_with(
         {
             "OTEL_EXPORTER_OTLP_ENDPOINT": endpoint,
@@ -79,3 +80,14 @@ def test_deployment_allows_an_unauthenticated_otlp_endpoint(
             "OTEL_EXPORTER_OTLP_AUTHORIZATION": None,
         }
     )
+
+
+def test_dedicated_telemetry_reference_preserves_values_without_export(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TOURNEYDESK_TELEMETRY_SECRET_NAME", "tourneydesk-telemetry")
+    named_secret = Mock(spec=modal.Secret)
+    from_name = Mock(return_value=named_secret)
+    monkeypatch.setattr(modal_app.modal.Secret, "from_name", from_name)
+    assert modal_app._deployment_secrets() == [named_secret] * 3
+    assert from_name.call_args_list[-1].args == ("tourneydesk-telemetry",)
