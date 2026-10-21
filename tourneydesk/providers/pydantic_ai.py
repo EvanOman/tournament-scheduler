@@ -33,7 +33,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai import Agent, RunContext, Tool
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelMessagesTypeAdapter
 from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import UsageLimits
 
 from tourneydesk.prompts import SYSTEM_PROMPT
 from tourneydesk.providers.base import AgentTurn, SpecMutated, TextDelta
@@ -46,6 +50,8 @@ DEFAULT_GLM_MODEL = "glm-5.2"
 DEFAULT_GPT_MODEL = "gpt-5.6-sol"
 DEFAULT_ZAI_BASE_URL = "https://api.z.ai/api/paas/v4"
 DEFAULT_MAX_OUTPUT_TOKENS = 800
+_PUBLIC_DEMO_MAX_TURNS = 12
+_PUBLIC_DEMO_MAX_HISTORY_BYTES = 64 * 1024
 
 # Read-only tools whose results are internal dumps, not user-facing provenance.
 _READONLY_TOOLS = ("get_spec_summary", "get_schedule_summary")
@@ -57,6 +63,10 @@ _FRIENDLY_NO_KEY = (
 _FRIENDLY_API_ERROR = (
     "Sorry, I hit a problem reaching the AI service just now. Your draft is safe — "
     "please try sending that again in a moment."
+)
+_FRIENDLY_DEMO_LIMIT = (
+    "You've reached this session's demo chat limit. Start a new draft to keep chatting, "
+    "or use the constraint controls below."
 )
 
 
@@ -221,13 +231,39 @@ class PydanticAIIntake:
 
     ``models`` is injectable so tests can supply ``FunctionModel``/``TestModel``
     keyed by engine ("glm"/"gpt") and never touch the network.
+
+    ``public_demo`` bounds each model loop and retains at most 64 KiB of whole
+    conversation history. A session allows twelve model-started turns, including
+    failures, and closes after a usage limit or history overflow. CLI and product
+    callers keep their existing policy when this option is omitted.
     """
 
-    def __init__(self, session: SpecSession, models: dict[str, Model] | None = None) -> None:
+    def __init__(
+        self, session: SpecSession, models: dict[str, Model] | None = None, *, public_demo: bool = False
+    ) -> None:
         self.session = session
         self._history: list[Any] = []
+        self._public_demo = public_demo
+        self._demo_turns = 0
+        self._demo_closed = False
         # Cache built (or injected) models per engine; None means unconfigured.
         self._models: dict[str, Model | None] = dict(models) if models else {}
+
+    def _remember_history(self, history: list[Any]) -> None:
+        """Retain whole runs only; never split a tool call from its response."""
+        if self._public_demo and len(ModelMessagesTypeAdapter.dump_json(history)) > _PUBLIC_DEMO_MAX_HISTORY_BYTES:
+            self._demo_closed = True
+            return
+        self._history = history
+
+    def _demo_limit_turn(self, on_text_delta: TextDelta | None, deps: _Deps | None = None) -> AgentTurn:
+        _stream(_FRIENDLY_DEMO_LIMIT, on_text_delta)
+        return AgentTurn(
+            text=_FRIENDLY_DEMO_LIMIT,
+            tool_calls=deps.tool_calls if deps else [],
+            echoes=deps.echoes if deps else [],
+            complete=False,
+        )
 
     def _model_for(self, engine: str) -> Model | None:
         if engine not in self._models:
@@ -243,6 +279,8 @@ class PydanticAIIntake:
         model_key: str = "glm",
         on_progress: Callable[[str], None] | None = None,
     ) -> AgentTurn:
+        if self._public_demo and (self._demo_closed or self._demo_turns >= _PUBLIC_DEMO_MAX_TURNS):
+            return self._demo_limit_turn(on_text_delta)
         engine = model_key if model_key in ("glm", "gpt") else "glm"
         model = self._model_for(engine)
         if model is None:
@@ -250,19 +288,33 @@ class PydanticAIIntake:
             _stream(text, on_text_delta)
             return AgentTurn(text=text, tool_calls=[], echoes=[], complete=False)
 
+        # Count attempts, including interrupted or failed runs. Otherwise a
+        # repeatedly failing tool loop could evade the session work ceiling.
+        if self._public_demo:
+            self._demo_turns += 1
+        usage_limits = (
+            UsageLimits(request_limit=4, tool_calls_limit=16, input_tokens_limit=16000, output_tokens_limit=3200)
+            if self._public_demo
+            else None
+        )
+        model_settings: ModelSettings | None = {"max_tokens": DEFAULT_MAX_OUTPUT_TOKENS} if self._public_demo else None
         deps = _Deps(session=self.session, on_spec_mutated=on_spec_mutated, on_progress=on_progress)
 
         if on_text_delta is None:
-            # No sink -> unchanged non-streaming path (byte-for-byte with the
-            # pre-streaming behaviour): the demo's plain-request /chat lives here.
+            # The demo's plain-request /chat endpoint uses the non-streaming path.
             try:
                 result = await _AGENT.run(
                     director_message,
                     model=model,
                     message_history=self._history or None,
                     deps=deps,
+                    usage_limits=usage_limits,
+                    model_settings=model_settings,
                 )
-            except Exception:  # noqa: BLE001 -- any model/transport error is user-facing, not fatal
+            except Exception as exc:  # noqa: BLE001 -- model/transport errors must produce a user-facing reply
+                if self._public_demo and isinstance(exc, UsageLimitExceeded):
+                    self._demo_closed = True
+                    return self._demo_limit_turn(on_text_delta, deps)
                 logger.exception("Pydantic AI run failed on engine=%s", engine)
                 text = _FRIENDLY_API_ERROR
                 _stream(text, on_text_delta)
@@ -277,7 +329,7 @@ class PydanticAIIntake:
 
             # Persist the full history (incl. this turn) so the NEXT turn -- on
             # either engine -- continues the same conversation.
-            self._history = list(result.all_messages())
+            self._remember_history(list(result.all_messages()))
             final_text = result.output if isinstance(result.output, str) else str(result.output)
             _stream(final_text, on_text_delta)
             return AgentTurn(
@@ -300,6 +352,8 @@ class PydanticAIIntake:
                 model=model,
                 message_history=self._history or None,
                 deps=deps,
+                usage_limits=usage_limits,
+                model_settings=model_settings,
             ) as result:
                 async for chunk in result.stream_text(delta=True, debounce_by=None):
                     if chunk:
@@ -307,7 +361,10 @@ class PydanticAIIntake:
                 final_output = await result.get_output()
                 history = list(result.all_messages())
                 usage_fields = _usage_fields(engine, model, result)
-        except Exception:  # noqa: BLE001 -- any model/transport error is user-facing, not fatal
+        except Exception as exc:  # noqa: BLE001 -- model/transport errors must produce a user-facing reply
+            if self._public_demo and isinstance(exc, UsageLimitExceeded):
+                self._demo_closed = True
+                return self._demo_limit_turn(on_text_delta, deps)
             logger.exception("Pydantic AI run_stream failed on engine=%s", engine)
             text = _FRIENDLY_API_ERROR
             _stream(text, on_text_delta)
@@ -320,7 +377,7 @@ class PydanticAIIntake:
                 provider_error=True,
             )
 
-        self._history = history
+        self._remember_history(history)
         final_text = final_output if isinstance(final_output, str) else str(final_output)
         return AgentTurn(
             text=final_text,

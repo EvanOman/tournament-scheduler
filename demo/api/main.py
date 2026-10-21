@@ -1,15 +1,4 @@
-"""TourneyDesk demo API for evanoman.com.
-
-A purpose-built, LLM-free FastAPI service: visitors build tournament
-constraints with direct UI controls (the conversational intake is the full
-product and is deliberately absent here), and this API runs the real CP-SAT
-solver, independent validator, and — on infeasibility — the deterministic
-conflict-explanation + repair engine.
-
-No ANTHROPIC_API_KEY, no secrets: everything here is pure computation.
-Deployed on Render free tier; the site proxies /api/tourneydesk/* to it
-(mirrors the linprogx demo pattern).
-"""
+"""Public deterministic solver plus authenticated, budgeted demo chat."""
 
 from __future__ import annotations
 
@@ -26,12 +15,13 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from demo.api import tracing
+from demo.api.security import CLIENT_HEADER, ChatSecurityMiddleware
 from tournament_scheduler.conflict import extract_conflict
 from tournament_scheduler.models import (
     CoachingConflict,
@@ -46,7 +36,9 @@ from tournament_scheduler.pools import assign_pools
 from tournament_scheduler.solver import solve
 from tournament_scheduler.validator import validate
 from tourneydesk.core.service import SolveOutcome, solve_current
+from tourneydesk.limits import PUBLIC_DEMO_LIMITS
 from tourneydesk.session import SpecSession
+from tourneydesk.solver_limits import validate_public_solver_work
 from tourneydesk.web.schedule_view import schedule_payload
 
 if TYPE_CHECKING:
@@ -78,9 +70,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["content-type"],
 )
-# Added last, so it wraps CORS and the server span covers the whole request --
-# including preflights and anything CORS short-circuits.
-app.add_middleware(tracing.TracingMiddleware, routes=_TRACED_ROUTES)
 
 # One solve at a time is plenty for a personal-site demo, and it bounds the
 # free-tier instance's memory/CPU exposure regardless of request volume.
@@ -242,8 +231,12 @@ def _solve_and_shape(spec: TournamentSpec, parent: tracing.SpanContext | None = 
 # day or an abuse spike from growing memory without limit. One intake per session
 # owns BOTH engines and a shared history, so switching models mid-chat continues
 # the same conversation.
-_CHAT_MAX_SESSIONS = 500
+_CHAT_MAX_SESSIONS = 64
 _CHAT_IDLE_TTL_S = 3600  # evict a session after 1h with no activity
+# Apply the same deadline on Modal and Render. Provider cancellation and a
+# bounded speculative solve finish before the authority's 120-second lease.
+_CHAT_MODEL_TIMEOUT_S = 70
+_CHAT_SOLVE_TIMEOUT_S = 15
 
 
 class _ChatSessionStore:
@@ -253,6 +246,7 @@ class _ChatSessionStore:
         self._max = max_sessions
         self._ttl = idle_ttl_s
         self._items: OrderedDict[str, tuple[PydanticAIIntake, float]] = OrderedDict()
+        self._owners: dict[str, str] = {}
 
     def _evict(self, now: float) -> None:
         # Drop anything idle past the TTL, then trim to capacity (oldest first).
@@ -261,14 +255,16 @@ class _ChatSessionStore:
             del self._items[sid]
         while len(self._items) > self._max:
             self._items.popitem(last=False)
+        self._owners = {sid: owner for sid, owner in self._owners.items() if sid in self._items}
 
-    def get_or_create(self, session_id: str | None) -> tuple[str, PydanticAIIntake]:
+    def get_or_create(self, session_id: str | None, client_id: str) -> tuple[str, PydanticAIIntake]:
         now = time.monotonic()
         self._evict(now)
-        if session_id and session_id in self._items:
+        if session_id and session_id in self._items and self._owners.get(session_id, client_id) == client_id:
             intake, _ = self._items[session_id]
             self._items.move_to_end(session_id)
             self._items[session_id] = (intake, now)
+            self._owners[session_id] = client_id
             return session_id, intake
         # Unknown or absent id -> mint a fresh session. (An expired/unknown id is
         # treated as new rather than errored so the client never gets stuck.)
@@ -277,9 +273,11 @@ class _ChatSessionStore:
         # path. The first chat session is the first request that needs them.
         from tourneydesk.providers.pydantic_ai import PydanticAIIntake
 
-        intake = PydanticAIIntake(SpecSession())
+        intake = PydanticAIIntake(SpecSession(limits=PUBLIC_DEMO_LIMITS), public_demo=True)
         self._items[new_id] = (intake, now)
+        self._owners[new_id] = client_id
         self._items.move_to_end(new_id)
+        self._evict(now)
         return new_id, intake
 
 
@@ -287,11 +285,19 @@ _CHAT_STORE = _ChatSessionStore(_CHAT_MAX_SESSIONS, _CHAT_IDLE_TTL_S)
 
 
 class ChatRequest(BaseModel):
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, max_length=64)
     message: str = Field(min_length=1, max_length=2000)
     # Which engine to answer this message on. Default GLM (typically cheaper);
     # GPT is opt-in via the frontend switcher. History is shared across a switch.
     model: Literal["glm", "gpt"] = "glm"
+
+
+app.add_middleware(
+    ChatSecurityMiddleware,
+    validators={"/chat": ChatRequest.model_validate_json, "/chat/stream": ChatRequest.model_validate_json},
+)
+# Added last so authentication rejections, CORS and the full SSE body are traced.
+app.add_middleware(tracing.TracingMiddleware, routes=_TRACED_ROUTES)
 
 
 # Bounded, enumerated provider labels for gen_ai.system -- never a raw base URL.
@@ -336,14 +342,23 @@ async def _solve_session_span(session: SpecSession, parent: tracing.SpanContext 
     """Speculative solve of the in-progress spec, as a child span of the turn."""
     loop = asyncio.get_running_loop()
     with tracing.get_tracer().span("solve.session", parent=parent) as span:
-        outcome = await loop.run_in_executor(_EXECUTOR, solve_current, session)
+        async with asyncio.timeout(_CHAT_SOLVE_TIMEOUT_S):
+            outcome = await loop.run_in_executor(_EXECUTOR, solve_current, session)
         span.set_attribute("solve.status", outcome.status)
         return schedule_payload(outcome)
 
 
+async def _send_chat(intake: PydanticAIIntake, message: str, **kwargs: Any) -> AgentTurn:
+    try:
+        async with asyncio.timeout(_CHAT_MODEL_TIMEOUT_S):
+            return await intake.send(message, **kwargs)
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="Chat timed out. Please try again later.") from None
+
+
 @app.post("/chat")
-async def chat(req: ChatRequest) -> dict[str, Any]:
-    session_id, intake = _CHAT_STORE.get_or_create(req.session_id)
+async def chat(req: ChatRequest, request: Request) -> dict[str, Any]:
+    session_id, intake = _CHAT_STORE.get_or_create(req.session_id, request.headers[CLIENT_HEADER])
 
     tracer = tracing.get_tracer()
     with tracer.span(
@@ -360,7 +375,7 @@ async def chat(req: ChatRequest) -> dict[str, Any]:
         # Pydantic AI is async-native, so the model turn awaits directly on the event
         # loop; only the (blocking) CP-SAT solve is offloaded to the shared
         # single-worker executor so chat and /solve can't stack solves on free tier.
-        turn = await intake.send(req.message, model_key=req.model)
+        turn = await _send_chat(intake, req.message, model_key=req.model)
         _record_turn(span, turn)
 
         session = intake.session
@@ -379,7 +394,7 @@ def _sse_frame(event: str, data: dict[str, Any]) -> str:
 
 
 @app.post("/chat/stream")
-async def chat_stream(req: ChatRequest) -> StreamingResponse:
+async def chat_stream(req: ChatRequest, request: Request) -> StreamingResponse:
     """SSE variant of ``/chat``: same request, but progress + token deltas land
     on the wire as the 20-40s turn happens instead of all at once at the end.
 
@@ -397,7 +412,7 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
     safe from either caller. The generator below drains that queue into SSE
     frames until a `None` sentinel closes the stream.
     """
-    session_id, intake = _CHAT_STORE.get_or_create(req.session_id)
+    session_id, intake = _CHAT_STORE.get_or_create(req.session_id, request.headers[CLIENT_HEADER])
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
 
@@ -434,7 +449,8 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
 
     async def run_turn() -> None:
         try:
-            turn = await intake.send(
+            turn = await _send_chat(
+                intake,
                 req.message,
                 on_text_delta=on_text_delta,
                 model_key=req.model,
@@ -500,6 +516,10 @@ def solve_demo(req: DemoRequest) -> dict[str, Any]:
     if total_teams > 64:
         raise HTTPException(status_code=422, detail="Demo caps at 64 teams total.")
     spec = _build_spec(req)
+    try:
+        validate_public_solver_work(spec, assign_pools(spec))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     request_span = tracing.current_span()
     if request_span is not None:
         request_span.set_attribute("tournament.days", req.days)

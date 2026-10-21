@@ -9,8 +9,9 @@ Deploy:  OTEL_EXPORTER_OTLP_ENDPOINT=... \
          OTEL_EXPORTER_OTLP_AUTHORIZATION=... \
          uv run --with modal --no-project modal deploy deploy/modal_app.py
 Secrets: `tourneydesk` Modal secret holds ZAI_API_KEY, OPENAI_API_KEY,
-         GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS (and DEMO_SHARED_SECRET if the
-         proxy is configured to require it). Optional
+         GLM_MODEL, GPT_MODEL, MAX_OUTPUT_TOKENS. `tourneydesk-origin-auth`
+         separately holds TOURNEYDESK_ORIGIN_SECRET and
+         TOURNEYDESK_ADMISSION_URL. Optional
          {GLM,GPT}_{INPUT,OUTPUT}_USD_PER_MILLION_TOKENS values enable estimated
          per-turn cost telemetry without baking volatile prices into code.
          OTLP relay configuration comes from inline deploy-process values,
@@ -27,14 +28,36 @@ off-window visits don't each cold-start.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import modal
 
+_CERTIFI_HOTFIX = str(Path(__file__).with_name("certifi-hotfix.txt"))
+_TRUST_ENV = {
+    "SSL_CERT_FILE": "/opt/tourneydesk-ca.pem",
+    "SSL_CERT_DIR": "/opt/tourneydesk-empty-ca",
+    "GRPC_DEFAULT_SSL_ROOTS_FILE_PATH": "/opt/tourneydesk-ca.pem",
+}
+
+
+def _with_fixed_ca(base: modal.Image) -> modal.Image:
+    """Patch only the approved CA bundle after the cached dependency layer."""
+    return (
+        base.pip_install_from_requirements(
+            _CERTIFI_HOTFIX, extra_options="--no-deps --require-hashes --only-binary=:all:"
+        )
+        .run_commands(
+            "mkdir -p /opt/tourneydesk-empty-ca",
+            "python -c 'import certifi, shutil; shutil.copyfile(certifi.where(), \"/opt/tourneydesk-ca.pem\")'",
+        )
+        .env(_TRUST_ENV)
+    )
+
+
 # Runtime deps pinned to the repo's locked versions (parity with the tested
 # code). The three first-party packages are baked in from local source.
-image = (
-    modal.Image.debian_slim(python_version="3.13")
-    .pip_install(
+image = _with_fixed_ca(
+    modal.Image.debian_slim(python_version="3.13").pip_install(
         "ortools==9.12.4544",
         "fastapi==0.115.14",
         "pydantic==2.13.4",
@@ -42,15 +65,14 @@ image = (
         "openai==2.44.0",
         "pyyaml>=6.0",
     )
-    .add_local_python_source("tournament_scheduler", "tourneydesk", "demo")
-)
+).add_local_python_source("tournament_scheduler", "tourneydesk", "demo")
 
 app = modal.App("tourneydesk-demo")
 
 
 def _deployment_secrets() -> list[modal.Secret]:
     """Keep observability optional and separate from application credentials."""
-    secrets = [modal.Secret.from_name("tourneydesk")]
+    secrets = [modal.Secret.from_name("tourneydesk"), modal.Secret.from_name("tourneydesk-origin-auth")]
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if endpoint:
         secrets.append(
@@ -61,6 +83,10 @@ def _deployment_secrets() -> list[modal.Secret]:
                 }
             )
         )
+    elif telemetry_secret := os.getenv("TOURNEYDESK_TELEMETRY_SECRET_NAME"):
+        # A dedicated key-only telemetry secret can preserve existing relay
+        # configuration during an operational rollout without exporting values.
+        secrets.append(modal.Secret.from_name(telemetry_secret))
     return secrets
 
 
@@ -70,6 +96,7 @@ def _deployment_secrets() -> list[modal.Secret]:
     # keys without mounting another named secret that could replace app keys.
     secrets=_deployment_secrets(),
     min_containers=0,  # scale-to-zero; set to 1 for always-warm
+    max_containers=1,  # disposable chat sessions stay on one bounded instance
     scaledown_window=1200,  # Modal's max: retain an idle container for 20 min
     # Restore from a memory snapshot on scale-from-zero instead of re-importing
     # Python (~8-9 s measured) — restores land in a couple of seconds. The LLM
@@ -81,14 +108,38 @@ def _deployment_secrets() -> list[modal.Secret]:
     timeout=90,
 )
 # Chat turns are I/O-bound (waiting on the GLM/GPT API for seconds), so one
-# container serves many concurrently instead of one-at-a-time; Modal spins up
-# another container once ~8 are in flight.
+# container can serve chat alongside health and deterministic solver requests.
+# The shared admission authority permits at most four paid turns globally.
 @modal.concurrent(max_inputs=12, target_inputs=8)
 @modal.asgi_app()
 def fastapi_app():
     from demo.api.main import app as demo_app
 
     return demo_app
+
+
+_ADMISSION_IMAGE = _with_fixed_ca(
+    modal.Image.debian_slim(python_version="3.13").pip_install("fastapi==0.115.14", "pydantic==2.13.4")
+).add_local_python_source("demo")
+_ADMISSION_STORE = modal.Dict.from_name("tourneydesk-demo-admission", create_if_missing=True)
+
+
+@app.function(
+    image=_ADMISSION_IMAGE,
+    secrets=[modal.Secret.from_name("tourneydesk-origin-auth")],
+    min_containers=0,
+    max_containers=1,
+    scaledown_window=60,
+    cpu=0.25,
+    memory=256,
+    timeout=15,
+)
+@modal.concurrent(max_inputs=1)
+@modal.asgi_app()
+def admission_api():
+    from demo.api.admission import create_admission_app
+
+    return create_admission_app(_ADMISSION_STORE)
 
 
 # --- Scheduled warm window ---------------------------------------------------
@@ -106,7 +157,7 @@ def fastapi_app():
 # during the final 22:00 hour instead of missing the last hourly tick. Tune the
 # window by editing the two Cron expressions.
 
-_CRON_IMAGE = modal.Image.debian_slim(python_version="3.13")
+_CRON_IMAGE = _with_fixed_ca(modal.Image.debian_slim(python_version="3.13"))
 
 
 @app.function(

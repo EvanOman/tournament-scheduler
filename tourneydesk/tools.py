@@ -520,6 +520,7 @@ def dispatch(session: SpecSession, name: str, tool_input: dict[str, Any]) -> Too
         return ToolResult(content=f"Unknown tool '{name}'.", is_error=True)
 
     try:
+        session.validate_tool_input(tool_input)
         if name == "set_tournament_info":
             session.set_tournament_info(
                 name=tool_input["name"],

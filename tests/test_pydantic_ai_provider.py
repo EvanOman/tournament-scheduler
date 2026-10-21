@@ -334,11 +334,9 @@ def _seed_store(session_id: str, models: dict[str, Any]) -> None:
     _CHAT_STORE._items[session_id] = (intake, time.monotonic())
 
 
-def test_chat_endpoint_returns_reply_rules_and_schedule() -> None:
-    from demo.api.main import app
-
+def test_chat_endpoint_returns_reply_rules_and_schedule(demo_chat_client: TestClient) -> None:
     _seed_store("sess-pa", {"glm": _full_spec_model()})
-    client = TestClient(app)
+    client = demo_chat_client
 
     resp = client.post("/chat", json={"session_id": "sess-pa", "message": "build it", "model": "glm"})
     assert resp.status_code == 200
@@ -352,12 +350,10 @@ def test_chat_endpoint_returns_reply_rules_and_schedule() -> None:
     assert body["schedule"]["stats"]["num_games_scheduled"] >= 1
 
 
-def test_chat_endpoint_mints_session_and_defaults_to_glm(monkeypatch: Any) -> None:
+def test_chat_endpoint_mints_session_and_defaults_to_glm(monkeypatch: Any, demo_chat_client: TestClient) -> None:
     monkeypatch.delenv("ZAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    from demo.api.main import app
-
-    client = TestClient(app)
+    client = demo_chat_client
     resp = client.post("/chat", json={"message": "hi there"})  # no model -> defaults to glm
     assert resp.status_code == 200
     body = resp.json()

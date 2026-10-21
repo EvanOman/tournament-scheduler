@@ -9,8 +9,12 @@ what was actually said, for the Rules panel.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from datetime import timedelta
+from functools import wraps
+from itertools import chain
+from typing import Any, Concatenate, Literal
 
 from tournament_scheduler.models import (
     CoachingConflict,
@@ -25,6 +29,7 @@ from tournament_scheduler.models import (
     TimeWindow,
     TournamentSpec,
 )
+from tourneydesk.limits import SessionLimits
 
 _OPTIONAL_DIVISION_FIELDS = (
     "halftime_minutes",
@@ -130,10 +135,29 @@ def _validated_division_spec(
     return DivisionSpec.model_validate(kwargs)
 
 
-class SpecSession:
-    """Mutable draft of a TournamentSpec, with provenance per fact."""
+def _bounded_input[**P, R](
+    method: Callable[Concatenate[SpecSession, P], R],
+) -> Callable[Concatenate[SpecSession, P], R]:
+    """Give direct mutations the same input envelope as tool dispatch."""
 
-    def __init__(self) -> None:
+    @wraps(method)
+    def checked(self: SpecSession, *args: P.args, **kwargs: P.kwargs) -> R:
+        self.validate_tool_input(kwargs)
+        return method(self, *args, **kwargs)
+
+    return checked
+
+
+class SpecSession:
+    """Mutable draft of a TournamentSpec, with provenance per fact.
+
+    ``limits=None`` preserves the unrestricted CLI/product behavior. Public
+    callers can opt into ``SpecSession(limits=PUBLIC_DEMO_LIMITS)`` using the
+    immutable envelope in :mod:`tourneydesk.limits`.
+    """
+
+    def __init__(self, *, limits: SessionLimits | None = None) -> None:
+        self.limits = limits
         self.name: str = ""
         self.description: str = ""
         self._name_quotes: list[str] = []
@@ -152,9 +176,117 @@ class SpecSession:
         # the SAME solution for the same spec. core.service.solve_current owns it.
         self.solve_cache: tuple[str, Any] | None = None
 
+    def validate_tool_input(self, values: dict[str, Any]) -> None:
+        """Check raw tool arguments before parsing or mutating a bounded draft."""
+        if self.limits is not None:
+            self.limits.validate_input(values)
+
+    def _all_provenance(self) -> Iterable[str]:
+        yield from self._name_quotes
+        for draft in chain(self.divisions.values(), self.teams.values(), self.fields.values()):
+            yield from draft.source_quotes
+        for _, quote in chain(
+            self.coaching_conflicts, self.team_avoidances, self.time_preferences, self.field_preferences
+        ):
+            yield quote
+        yield from self._assumptions
+        if self._completion_quote is not None:
+            yield self._completion_quote
+
+    def _check_provenance(
+        self,
+        source_quote: str,
+        *,
+        copies: int = 1,
+        removed: Iterable[str] = (),
+        existing: Sequence[str] | None = None,
+        assumption: str | None = None,
+    ) -> None:
+        if self.limits is None:
+            return
+        limits = self.limits
+        if existing is not None:
+            limits.check(len(existing) + 1, limits.max_quotes_per_fact, "quotes per fact")
+        entries = 0
+        characters = 0
+        for quote in self._all_provenance():
+            entries += 1
+            characters += len(quote)
+        for quote in removed:
+            entries -= 1
+            characters -= len(quote)
+        entries += copies + (assumption is not None)
+        characters += copies * len(source_quote) + (len(assumption) if assumption is not None else 0)
+        limits.check(entries, limits.max_provenance_entries, "retained provenance entries")
+        limits.check(characters, limits.max_provenance_chars, "retained provenance characters")
+
+    def _check_team_capacity(self, division_id: str, count: int, *, replacing: bool = False) -> None:
+        if self.limits is None:
+            return
+        current = sum(t.division_id == division_id for t in self.teams.values())
+        division_total = count if replacing else current + count
+        total = len(self.teams) - current + count if replacing else len(self.teams) + count
+        self.limits.check(division_total, self.limits.max_teams_per_division, "teams per division")
+        self.limits.check(total, self.limits.max_total_teams, "teams total")
+
+    def _check_division_values(self, **values: Any) -> None:
+        if self.limits is None:
+            return
+        for name, maximum in (
+            ("game_duration_minutes", self.limits.max_game_duration_minutes),
+            ("games_per_team", self.limits.max_games_per_team),
+            ("min_rest_minutes", self.limits.max_min_rest_minutes),
+            ("buffer_minutes", self.limits.max_buffer_minutes),
+        ):
+            value = values.get(name)
+            if value is not None:
+                self.limits.check(value, maximum, name)
+
+    def _validated_windows(self, raw: list[dict[str, Any]], *, replacing_field: str | None = None) -> list[TimeWindow]:
+        retained: list[TimeWindow] = []
+        if self.limits is not None:
+            self.limits.check(len(raw), self.limits.max_windows_per_fact, "windows per fact")
+            retained = [
+                window for field in self.fields.values() if field.id != replacing_field for window in field.availability
+            ]
+            retained.extend(window for pref, _ in self.time_preferences for window in pref.preferred_windows)
+            self.limits.check(len(retained) + len(raw), self.limits.max_total_windows, "time windows total")
+        windows = [TimeWindow.model_validate(w) for w in raw]
+        if self.limits is not None and (retained or windows):
+            days = self.limits.max_tournament_days
+            if sum((w.end - w.start for w in windows), timedelta()) > timedelta(days=days):
+                raise ValueError(f"Demo limit: combined windows per fact may not exceed {days} days of time.")
+            all_windows = retained + windows
+            try:
+                earliest = min(w.start for w in all_windows)
+                latest = max(w.end for w in all_windows)
+            except TypeError as exc:
+                raise ValueError("Demo input: time windows must use consistent time zones.") from exc
+            # An end at midnight belongs to the previous playing day.
+            first_day = min(w.start.date() for w in all_windows)
+            last_day = max((w.end - timedelta(microseconds=1)).date() for w in all_windows)
+            if latest - earliest > timedelta(days=days) or (last_day - first_day).days >= days:
+                raise ValueError(f"Demo limit: time windows must fit within {days} consecutive days.")
+        return windows
+
+    def _check_relationship_capacity(self, *, replacing: int = 0) -> None:
+        if self.limits is not None:
+            count = sum(
+                len(items)
+                for items in (
+                    self.coaching_conflicts,
+                    self.team_avoidances,
+                    self.time_preferences,
+                    self.field_preferences,
+                )
+            )
+            self.limits.check(count - replacing + 1, self.limits.max_relationships, "relationships and preferences")
+
     # -- Tournament info ----------------------------------------------------
 
+    @_bounded_input
     def set_tournament_info(self, *, name: str, description: str | None, source_quote: str) -> None:
+        self._check_provenance(source_quote, existing=self._name_quotes)
         self.name = name
         if description is not None:
             self.description = description
@@ -162,6 +294,7 @@ class SpecSession:
 
     # -- Divisions ------------------------------------------------------------
 
+    @_bounded_input
     def add_division(
         self,
         *,
@@ -178,6 +311,16 @@ class SpecSession:
         bracket_after_pools: bool | None = None,
         source_quote: str,
     ) -> DraftDivision:
+        previous = self.divisions.get(id)
+        if self.limits is not None:
+            self.limits.check(len(self.divisions) + (previous is None), self.limits.max_divisions, "divisions")
+        self._check_division_values(
+            game_duration_minutes=game_duration_minutes,
+            games_per_team=games_per_team,
+            min_rest_minutes=min_rest_minutes,
+            buffer_minutes=buffer_minutes,
+        )
+        self._check_provenance(source_quote, removed=previous.source_quotes if previous is not None else ())
         size = FieldSize(field_size)
         _validated_division_spec(
             id,
@@ -208,6 +351,7 @@ class SpecSession:
         self.divisions[id] = draft
         return draft
 
+    @_bounded_input
     def update_division(
         self,
         *,
@@ -240,6 +384,8 @@ class SpecSession:
             if bracket_after_pools is not None
             else draft.bracket_after_pools,
         }
+        self._check_division_values(game_duration_minutes=new_duration, **merged)
+        self._check_provenance(source_quote, existing=draft.source_quotes)
         _validated_division_spec(id, new_name, new_size, new_duration, **merged)
 
         draft.name = new_name
@@ -256,6 +402,7 @@ class SpecSession:
         draft.source_quotes.append(source_quote)
         return draft
 
+    @_bounded_input
     def remove_division(self, *, id: str, source_quote: str) -> bool:
         if id not in self.divisions:
             return False
@@ -267,24 +414,30 @@ class SpecSession:
 
     # -- Teams ------------------------------------------------------------------
 
-    def _derive_team_id(self, division_id: str, name: str) -> str:
+    def _derive_team_id(self, division_id: str, name: str, reserved: set[str] | None = None) -> str:
         base = f"{division_id}_{_slugify(name)}"
         candidate = base
         suffix = 2
-        while candidate in self.teams:
+        while candidate in self.teams or (reserved is not None and candidate in reserved):
             candidate = f"{base}_{suffix}"
             suffix += 1
         return candidate
 
+    @_bounded_input
     def add_teams(self, *, division_id: str, teams: list[dict[str, Any]], source_quote: str) -> list[DraftTeam]:
         if division_id not in self.divisions:
             raise ValueError(f"Unknown division '{division_id}' -- add the division before adding its teams.")
+        self._check_team_capacity(division_id, len(teams))
+        self._check_provenance(source_quote, copies=len(teams))
         created: list[DraftTeam] = []
+        reserved: set[str] = set()
         for entry in teams:
             name = str(entry["name"])
             # A duplicate name inside one division silently created a second team
             # that RENDERED as "Team 2 v Team 2" in the schedule (persona P4).
-            existing = [t for t in self.teams.values() if t.division_id == division_id and t.name == name]
+            existing = [
+                t for t in chain(self.teams.values(), created) if t.division_id == division_id and t.name == name
+            ]
             if existing:
                 raise ValueError(
                     f"A team named '{name}' already exists in division '{division_id}' "
@@ -292,7 +445,11 @@ class SpecSession:
                     "teams are never duplicated by name."
                 )
             raw_id = entry.get("id")
-            team_id = str(raw_id) if raw_id else self._derive_team_id(division_id, name)
+            team_id = str(raw_id) if raw_id else self._derive_team_id(division_id, name, reserved)
+            if self.limits is not None:
+                self.limits.check(len(team_id), self.limits.max_id_chars, "team id length")
+                if team_id in self.teams or team_id in reserved:
+                    raise ValueError(f"Team id '{team_id}' already exists; use a unique team id.")
             club = entry.get("club")
             seed = entry.get("seed")
             draft = DraftTeam(
@@ -303,15 +460,38 @@ class SpecSession:
                 seed=int(seed) if seed is not None else None,
             )
             draft.source_quotes.append(source_quote)
-            self.teams[team_id] = draft
             created.append(draft)
+            reserved.add(team_id)
+        # Validate the entire batch before publishing any roster changes.
+        self.teams.update((draft.id, draft) for draft in created)
         return created
 
+    @_bounded_input
     def set_team_count(self, *, division_id: str, count: int, source_quote: str) -> list[DraftTeam]:
         if division_id not in self.divisions:
             raise ValueError(f"Unknown division '{division_id}' -- add the division before setting a team count.")
+        if self.limits is not None and type(count) is not int:
+            raise ValueError("Demo input: team count must be an integer.")
         if count < 2:
             raise ValueError("Team count must be at least 2.")
+        self._check_team_capacity(division_id, count, replacing=True)
+        division_name = self.divisions[division_id].name
+        assumption = f"Assumed placeholder team names for {division_name} ({count} teams, names not stated)"
+        if self.limits is not None:
+            self.limits.check(len(self._assumptions) + 1, self.limits.max_assumptions, "retained assumptions")
+            for i in range(1, count + 1):
+                team_id = f"{division_id}_team_{i:02d}"
+                self.limits.check(len(team_id), self.limits.max_id_chars, "team id length")
+                if team_id in self.teams and self.teams[team_id].division_id != division_id:
+                    raise ValueError(f"Team id '{team_id}' already exists in another division.")
+        self._check_provenance(
+            source_quote,
+            copies=count,
+            removed=(
+                quote for team in self.teams.values() if team.division_id == division_id for quote in team.source_quotes
+            ),
+            assumption=assumption,
+        )
         for team_id in [tid for tid, t in self.teams.items() if t.division_id == division_id]:
             del self.teams[team_id]
         created: list[DraftTeam] = []
@@ -321,35 +501,40 @@ class SpecSession:
             draft.source_quotes.append(source_quote)
             self.teams[team_id] = draft
             created.append(draft)
-        division_name = self.divisions[division_id].name
-        self._assumptions.append(
-            f"Assumed placeholder team names for {division_name} ({count} teams, names not stated)"
-        )
+        self._assumptions.append(assumption)
         return created
 
     # -- Fields -------------------------------------------------------------
 
+    @_bounded_input
     def add_field(
         self, *, id: str, name: str, size: str, availability: list[dict[str, Any]], source_quote: str
     ) -> DraftField:
+        previous = self.fields.get(id)
+        if self.limits is not None:
+            self.limits.check(len(self.fields) + (previous is None), self.limits.max_fields, "fields")
+        self._check_provenance(source_quote, removed=previous.source_quotes if previous is not None else ())
         field_size = FieldSize(size)
-        windows = [TimeWindow.model_validate(w) for w in availability]
+        windows = self._validated_windows(availability, replacing_field=id)
         draft = DraftField(id=id, name=name, size=field_size, availability=windows)
         draft.source_quotes.append(source_quote)
         self.fields[id] = draft
         return draft
 
+    @_bounded_input
     def set_field_availability(
         self, *, field_id: str, availability: list[dict[str, Any]], source_quote: str
     ) -> DraftField:
         if field_id not in self.fields:
             raise ValueError(f"Unknown field '{field_id}' -- add the field first with add_field.")
-        windows = [TimeWindow.model_validate(w) for w in availability]
         draft = self.fields[field_id]
+        self._check_provenance(source_quote, existing=draft.source_quotes)
+        windows = self._validated_windows(availability, replacing_field=field_id)
         draft.availability = windows
         draft.source_quotes.append(source_quote)
         return draft
 
+    @_bounded_input
     def remove_field(self, *, id: str, source_quote: str) -> bool:
         if id not in self.fields:
             return False
@@ -358,12 +543,24 @@ class SpecSession:
 
     # -- Coaching conflicts ---------------------------------------------------
 
+    @_bounded_input
     def add_coaching_conflict(self, *, coach_name: str, team_ids: list[str], source_quote: str) -> CoachingConflict:
+        replaced = [q for c, q in self.coaching_conflicts if c.coach_name == coach_name]
+        if self.limits is not None:
+            self.limits.check(len(team_ids), self.limits.max_teams_per_coach, "teams per coach")
+            self.limits.check(
+                len(self.coaching_conflicts) - len(replaced) + 1,
+                self.limits.max_coaching_conflicts,
+                "coaching conflicts",
+            )
+        self._check_relationship_capacity(replacing=len(replaced))
+        self._check_provenance(source_quote, removed=replaced)
         conflict = CoachingConflict(coach_name=coach_name, team_ids=list(team_ids))
         self.coaching_conflicts = [c for c in self.coaching_conflicts if c[0].coach_name != coach_name]
         self.coaching_conflicts.append((conflict, source_quote))
         return conflict
 
+    @_bounded_input
     def remove_coaching_conflict(self, *, coach_name: str, source_quote: str) -> bool:
         before = len(self.coaching_conflicts)
         self.coaching_conflicts = [c for c in self.coaching_conflicts if c[0].coach_name != coach_name]
@@ -371,13 +568,18 @@ class SpecSession:
 
     # -- Team avoidances ------------------------------------------------------
 
+    @_bounded_input
     def add_team_avoidance(self, *, team_ids: list[str], reason: str | None, source_quote: str) -> TeamAvoidance:
-        avoidance = TeamAvoidance(team_ids=list(team_ids), reason=reason or "")
         key = frozenset(team_ids)
+        replaced = [q for a, q in self.team_avoidances if frozenset(a.team_ids) == key]
+        self._check_relationship_capacity(replacing=len(replaced))
+        self._check_provenance(source_quote, removed=replaced)
+        avoidance = TeamAvoidance(team_ids=list(team_ids), reason=reason or "")
         self.team_avoidances = [a for a in self.team_avoidances if frozenset(a[0].team_ids) != key]
         self.team_avoidances.append((avoidance, source_quote))
         return avoidance
 
+    @_bounded_input
     def remove_team_avoidance(self, *, team_ids: list[str], source_quote: str) -> bool:
         key = frozenset(team_ids)
         before = len(self.team_avoidances)
@@ -386,6 +588,7 @@ class SpecSession:
 
     # -- Preferences ----------------------------------------------------------
 
+    @_bounded_input
     def add_time_preference(
         self,
         *,
@@ -395,7 +598,9 @@ class SpecSession:
         priority: str | None,
         source_quote: str,
     ) -> TimePreference:
-        preferred_windows = [TimeWindow.model_validate(w) for w in windows]
+        self._check_relationship_capacity()
+        self._check_provenance(source_quote)
+        preferred_windows = self._validated_windows(windows)
         pref = TimePreference(
             target=target,
             target_type=target_type,
@@ -405,6 +610,7 @@ class SpecSession:
         self.time_preferences.append((pref, source_quote))
         return pref
 
+    @_bounded_input
     def remove_time_preferences(self, *, target: str, source_quote: str) -> int:
         """Remove every time preference for `target`; returns how many were removed."""
         del source_quote  # provenance recorded by the caller's transcript
@@ -412,6 +618,7 @@ class SpecSession:
         self.time_preferences = [(p, q) for p, q in self.time_preferences if p.target != target]
         return before - len(self.time_preferences)
 
+    @_bounded_input
     def remove_field_preferences(self, *, target: str, source_quote: str) -> int:
         """Remove every field preference for `target`; returns how many were removed."""
         del source_quote
@@ -419,6 +626,7 @@ class SpecSession:
         self.field_preferences = [(p, q) for p, q in self.field_preferences if p.target != target]
         return before - len(self.field_preferences)
 
+    @_bounded_input
     def add_field_preference(
         self,
         *,
@@ -428,6 +636,10 @@ class SpecSession:
         priority: str | None,
         source_quote: str,
     ) -> FieldPreference:
+        if self.limits is not None:
+            self.limits.check(len(field_ids), self.limits.max_fields, "fields per preference")
+        self._check_relationship_capacity()
+        self._check_provenance(source_quote)
         pref = FieldPreference(
             target=target,
             target_type=target_type,
@@ -439,7 +651,11 @@ class SpecSession:
 
     # -- Completion -------------------------------------------------------------
 
+    @_bounded_input
     def mark_intake_complete(self, *, confirmation_quote: str) -> None:
+        self._check_provenance(
+            confirmation_quote, removed=() if self._completion_quote is None else (self._completion_quote,)
+        )
         self.intake_complete = True
         self._completion_quote = confirmation_quote
 
