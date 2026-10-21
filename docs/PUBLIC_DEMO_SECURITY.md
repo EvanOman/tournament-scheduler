@@ -11,7 +11,7 @@ public and need no LLM credentials.
 ## Shared admission
 
 Set `TOURNEYDESK_ADMISSION_URL` on every retained origin to
-`https://evan058--tourneydesk-demo-admission-api.modal.run`. This service uses the
+`https://evan058--tourneydesk-demo-admission-api.us-east.modal.run`. This service uses the
 same scoped origin key and the persistent `tourneydesk-demo-admission` Modal Dict.
 Do not create a separate counter for Render or a second deployment.
 
